@@ -135,7 +135,6 @@ shifter shifter (
 // waveform related code
 ////////////////////////////////////////////////////////////////////////////////
 
-// wavedump
 initial $timeformat (-9,1," ns",0);
 `ifdef WAVE
 initial begin

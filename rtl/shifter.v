@@ -18,6 +18,20 @@
 //
 //--------------------------------------------------------------------------------
 
+// from the mask you know how far each bit should be moved, and from this distance
+// you pick the bit describing the distance of the current shift, so construct a
+// table of shifts and pick the appropriate bits, this should be done for every
+// stage, since the mask changes from stage to stage
+
+// mask0  01101100  01010000  10001000
+// shft0  xx11x00x  xx10xxxx  0xxxx1xx
+//        01110001  10100101  00101101 toggle if maskbit is 0
+// mask1  00111100  00110000  10000100
+// shft1  xxxx1111  xxxx00xx  xx1xxxx1
+//        00111111  11000011  00110011 toggle pair of bits if msb of mask pair is 0
+// mask2  00001111  00110000  00100001
+// shft2  xxxx0000  xxxxxx11  xxxxxx10
+
 `timescale 1ns/1ps
 
 module shifter #(
@@ -57,6 +71,18 @@ wire [DL-1:0]          pipe_ready;
 // shifter dynamic control signal
 reg  [DW-1:0] [DL-1:0] shift;
 
+// conversion from mask to shifts
+function [DW-1:0] [DL-1:0] mask2shift (input [DW-1:0] mask);
+  integer l,b;
+begin
+  for (l=0; l<DL; l=l+1) begin
+    for (b=0; b<DW; b=b+1) begin
+      
+    end
+  end
+end
+endfunction
+
 // rotate right
 //function [DW-1:0] rtr (
 //  input [DW-1:0] data,
@@ -72,7 +98,6 @@ if (rst) begin
 end else if (ctl_ena) begin
   pipe_valid <= {pipe_valid [DL-2:0], sti_valid};
 end
-
 
 // data path
 genvar l, b;
