@@ -62,8 +62,8 @@ adv2: ../tbn/testbench_adv2.sv $(RTL) $(TBN_SPI)
 	iverilog $(OPT) ../tbn/testbench_adv2.sv $(RTL) $(TBN_SPI) -o adv2.out
 	vvp -n -l adv2.log adv2.out
 
-rle: ../tbn/testbench_rle.sv ../rtl/rle_enc.v
-	iverilog $(OPT) ../tbn/testbench_rle.sv ../rtl/rle_enc.v -o rle.out
+rle:  $(TBN_STR) ../tbn/testbench_rle.sv ../rtl/rle_enc.v
+	iverilog $(OPT) $(TBN_STR) ../tbn/testbench_rle.sv ../rtl/rle_enc.v -o rle.out
 	vvp -n -l rle.log rle.out
 
 rle2: ../tbn/testbench_rle2.sv $(RTL) $(TBN_SPI)
