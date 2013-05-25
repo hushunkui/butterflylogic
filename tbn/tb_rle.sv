@@ -1,9 +1,9 @@
 `timescale 1ns/100ps
 
-module tb_rle();
-
-parameter int DW = 32;    // data width
-parameter int KW = DW/8;  // keep width (number of data bytes)
+module tb_rle #(
+  parameter int DW = 32,   // data width
+  parameter int KW = DW/8  // keep width (number of data bytes)
+);
 
 // system signals
 logic clk = 1;
@@ -52,7 +52,7 @@ begin
   disabledGroups = 4'b1110; // 8'bit mode
 
   repeat (10) @(posedge clk);
-  test_bypass();
+  test_bypass(4);
 
   repeat (10) @(posedge clk);
   enable = 1; // turn on RLE...
@@ -67,18 +67,18 @@ end
 
 event sto_event;
 
-task test_bypass;
+task test_bypass (input int unsigned len);
 begin
   fork
     // source sequence
     begin
-      for (sti_cnt=0; sti_cnt<256; sti_cnt++) begin
+      for (sti_cnt=0; sti_cnt<len; sti_cnt++) begin
         sti.trn ({4{sti_cnt[7:0]}});
       end
     end
     // drain sequence
     begin
-      for (sto_cnt=0; sto_cnt<256; sto_cnt++) begin
+      for (sto_cnt=0; sto_cnt<len; sto_cnt++) begin
         #1;
         sto.trn (value); if (value != {4{sto_cnt[7:0]}})  error++;
       end
