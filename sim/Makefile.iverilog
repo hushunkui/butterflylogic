@@ -34,11 +34,10 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/trigger.v         \
           $(RTL_SPI)
 
-TBN_MIX = ../tbn/testbench_adv2.sv \
-          ../tbn/testbench_adv.sv  \
-          ../tbn/testbench_rle2.sv \
-          ../tbn/testbench_rle.sv  \
-          ../tbn/testbench.sv
+TBN_MIX = ../tbn/tb_shifter.sv \
+          ../tbn/tb_adv.sv  \
+          ../tbn/tb_rle.sv  \
+          ../tbn/tb_logic_sniffer.sv
 TBN_SPI = ../tbn/spi_master.sv
 TBN_STR = ../tbn/str.sv
 
@@ -48,34 +47,26 @@ else
 OPT = -g2012 -I rtl -D ICARUS
 endif
 
-all: shifter adv adv2 rle rle2 full divider
+all: shifter adv rle full divider
 
 shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out
 	vvp -n -l shifter.log shifter.out
 
-adv: ../tbn/testbench_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
-	iverilog $(OPT) ../tbn/testbench_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v -o adv.out
+adv: ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
+	iverilog $(OPT) ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v -o adv.out
 	vvp -n -l adv.log adv.out
 
-adv2: ../tbn/testbench_adv2.sv $(RTL) $(TBN_SPI)
-	iverilog $(OPT) ../tbn/testbench_adv2.sv $(RTL) $(TBN_SPI) -o adv2.out
-	vvp -n -l adv2.log adv2.out
-
-rle:  $(TBN_STR) ../tbn/testbench_rle.sv ../rtl/rle_enc.v
-	iverilog $(OPT) $(TBN_STR) ../tbn/testbench_rle.sv ../rtl/rle_enc.v -o rle.out
+rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
+	iverilog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v -o rle.out
 	vvp -n -l rle.log rle.out
 
-rle2: ../tbn/testbench_rle2.sv $(RTL) $(TBN_SPI)
-	iverilog $(OPT) ../tbn/testbench_rle2.sv $(RTL) $(TBN_SPI) -o rle2.out
-	vvp -n -l rle2.log rle2.out
-
-full: ../tbn/testbench.sv $(RTL) $(TBN_SPI) $(LIB)
-	iverilog $(OPT) ../tbn/testbench.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
+full: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
+	iverilog $(OPT) ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
 	vvp -n -l full.log full.out
 
-divider: ../tbn/testbench.sv $(RTL) $(TBN_SPI)
-	iverilog $(OPT) -D TEST_DIVIDER ../tbn/testbench.sv $(RTL) $(TBN_SPI) -o divider.out
+divider: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI)
+	iverilog $(OPT) -D TEST_DIVIDER ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) -o divider.out
 	vvp -n -l divider.log divider.out
 
 gtk:
