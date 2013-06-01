@@ -45,6 +45,6 @@ begin
   sig_cs_n = 1'b1;
   #(PERIOD);
 end
-endtask
+endtask: cycle
 
-endmodule
+endmodule: spi_master
