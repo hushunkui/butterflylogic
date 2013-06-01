@@ -36,18 +36,21 @@
 
 `timescale 1ns/100ps
 
-module receiver #(
+module uart_rx #(
   parameter [31:0] FREQ = 100000000,
   parameter [31:0] RATE = 115200,
   parameter BITLENGTH = FREQ / RATE  // 100M / 115200 ~= 868
 )(
+  // system signals
   input  wire        clock,
-  input  wire        trxClock,
   input  wire        reset,
-  input  wire        rx,
+  //
+  input  wire        trxClock,
   output wire  [7:0] op,
   output wire [31:0] data,
-  output reg         execute
+  output reg         execute,
+  // UART signals
+  input  wire        uart_rx
 );
 
 localparam [2:0]
@@ -84,7 +87,7 @@ begin
   execute   <= next_execute;
 end
 
-always
+always @ *
 begin
   next_state = state;
   next_counter = counter;
@@ -107,12 +110,12 @@ begin
 
     WAITSTOP : // reset uart
       begin
-	if (rx) next_state = WAITSTART; 
+	if (uart_rx) next_state = WAITSTART; 
       end
 
     WAITSTART : // wait for start bit
       begin
-	if (!rx) next_state = WAITBEGIN; 
+	if (!uart_rx) next_state = WAITBEGIN; 
       end
 
     WAITBEGIN : // wait for first half of start bit
@@ -139,13 +142,13 @@ begin
 	      end
 	    else if (bytecount == 0) 
 	      begin
-		next_opcode = {rx,opcode[7:1]};
+		next_opcode = {uart_rx,opcode[7:1]};
 		next_databuf = databuf;
 	      end
 	    else 
 	      begin
 		next_opcode = opcode;
-		next_databuf = {rx,databuf[31:1]};
+		next_databuf = {uart_rx,databuf[31:1]};
 	      end
 	  end
 	else if (trxClock)
@@ -174,5 +177,5 @@ begin
 
   next_execute = (next_state == READY);
 end
-endmodule
 
+endmodule

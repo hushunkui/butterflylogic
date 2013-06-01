@@ -32,22 +32,25 @@
 
 `timescale 1ns/100ps
 
-module transmitter #( 
-  parameter [31:0] FREQ = 100000000;
-  parameter [31:0] BAUDRATE = 115200;
-  parameter BITLENGTH = FREQ / BAUDRATE;
+module uart_tx #( 
+  parameter [31:0] FREQ = 100000000,
+  parameter [31:0] BAUDRATE = 115200,
+  parameter BITLENGTH = FREQ / BAUDRATE
 )(
+  // system signals
   input  wire        clock,
-  input  wire        trxClock,
   input  wire        reset,
+  //
+  input  wire        trxClock,
   input  wire  [3:0] disabledGroups,
   input  wire        write,		// Data write request
   input  wire [31:0] wrdata,		// Write data
   input  wire        id,		// ID output request
   input  wire        xon,		// Flow control request
   input  wire        xoff,		// Resume output request
-  output wire        tx,		// Serial tx data
-  output reg         busy		// Busy flag
+  output reg         busy,		// Busy flag
+  // UART signals
+  output wire        uart_tx		// Serial tx data
 );
 
 localparam TRUE = 1'b1;
@@ -65,7 +68,7 @@ reg byteDone, next_byteDone;
 reg next_busy;
 
 reg [9:0] txBuffer, next_txBuffer;
-assign tx = txBuffer[0];
+assign uart_tx = txBuffer[0];
 
 reg [9:0] counter, next_counter;	// Big enough for FREQ/BAUDRATE (100Mhz/115200 ~= 868)
 wire counter_zero = ~|counter;
@@ -76,17 +79,17 @@ reg writeByte;
 //
 // Byte select mux...
 //
-reg [7:0] byte;
+reg [7:0] dbyte;
 reg disabled;
-always
+always @ *
 begin
-  byte = 0;
+  dbyte = 0;
   disabled = 0;
   case (bytesel[1:0]) // synthesys parallel_case
-    2'h0 : begin byte = sampled_wrdata[ 7: 0]; disabled = sampled_disabledGroups[0]; end
-    2'h1 : begin byte = sampled_wrdata[15: 8]; disabled = sampled_disabledGroups[1]; end
-    2'h2 : begin byte = sampled_wrdata[23:16]; disabled = sampled_disabledGroups[2]; end
-    2'h3 : begin byte = sampled_wrdata[31:24]; disabled = sampled_disabledGroups[3]; end
+    2'h0 : begin dbyte = sampled_wrdata[ 7: 0]; disabled = sampled_disabledGroups[0]; end
+    2'h1 : begin dbyte = sampled_wrdata[15: 8]; disabled = sampled_disabledGroups[1]; end
+    2'h2 : begin dbyte = sampled_wrdata[23:16]; disabled = sampled_disabledGroups[2]; end
+    2'h3 : begin dbyte = sampled_wrdata[31:24]; disabled = sampled_disabledGroups[3]; end
   endcase
 end
 
@@ -102,7 +105,7 @@ begin
   txBuffer <= next_txBuffer;
 end
 
-always
+always @ *
 begin
   next_bits = bits;
   next_byteDone = byteDone;
@@ -114,7 +117,7 @@ begin
       next_counter = BITLENGTH;
       next_bits = 0;
       next_byteDone = FALSE;
-      next_txBuffer = {1'b1,byte,1'b0}; // 8 bits, no parity, 1 stop bit (8N1)
+      next_txBuffer = {1'b1,dbyte,1'b0}; // 8 bits, no parity, 1 stop bit (8N1)
     end
   else if (counter_zero)
     begin
@@ -152,7 +155,7 @@ end else begin
   paused                 <= next_paused;
 end
 
-always
+always @ *
 begin
   next_state = state;
   next_sampled_wrdata = sampled_wrdata;

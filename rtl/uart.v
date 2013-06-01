@@ -30,22 +30,26 @@
 
 `timescale 1ns/100ps
 
-module eia232 #(
+module uart #(
   parameter [31:0] FREQ    = 100000000,
   parameter [31:0] SCALE   = 28,
   parameter [31:0] RATE    = 115200,
   parameter        TRXFREQ = FREQ / SCALE  // reduced rx & tx clock for receiver and transmitter
 )(
+  // system signals
   input  wire        clock,
   input  wire        reset,
-  input  wire  [1:0] speed,	// UART speed
+  // data stream
   input  wire        send,	// Send data output serial tx
   input  wire [31:0] wrdata,	// Data to be sent
-  input  wire        rx,	// Serial RX
-  output wire        tx,	// Serial TX
+  //
+  input  wire  [1:0] speed,	// UART speed
   output wire [39:0] cmd,
   output wire        execute,	// Cmd is valid
-  output wire        busy	// Indicates transmitter busy
+  output wire        busy,	// Indicates transmitter busy
+  // UART signals
+  input  wire        uart_rx,  // Serial RX
+  output wire        uart_tx   // Serial TX
 );
 
 wire trxClock; 
@@ -60,7 +64,6 @@ wire [7:0] opcode;
 wire [31:0] opdata;
 assign cmd = {opdata,opcode};
 
-
 //
 // Process special uart commands that do not belong in core decoder...
 //
@@ -74,7 +77,7 @@ begin
   disabledGroupsReg <= next_disabledGroupsReg;
 end
 
-always
+always @ *
 begin
   next_id = 1'b0;
   next_xon = 1'b0;
@@ -97,30 +100,27 @@ end
 //
 // Instantiate prescaler that generates clock matching UART reference (ie: 115200 baud)...
 //
-prescaler #(
-  .SCALE(SCALE)
-) prescaler (
-  .clock  (clock),
-  .reset  (reset),
-  .div    (speed),
-  .scaled (trxClock)
-);
+
+assign trxClock = 1;
 
 //
 // Instantiate serial-to-parallel receiver.  
 // Asserts "execute" whenever valid 8-bit value received.
 //
-receiver #(
+uart_rx #(
   .FREQ(TRXFREQ),
   .RATE(RATE)
-) receiver (
+) rx (
+  // system signals
   .clock    (clock),
   .reset    (reset),
-  .rx       (rx),
+  //
   .trxClock (trxClock),
   .op       (opcode),
   .data     (opdata),
-  .execute  (execute)
+  .execute  (execute),
+  // UART signals
+  .uart_rx  (uart_rx)
 );
 
 //
@@ -128,21 +128,24 @@ receiver #(
 // Genereate serial data whenever "send" or "id" asserted.
 // Obeys xon/xoff commands.
 //
-transmitter #(
+uart_tx #(
   .FREQ(TRXFREQ),
   .RATE(RATE)
-) transmitter (
+) tx (
+  // system signals
   .clock          (clock),
-  .trxClock       (trxClock),
   .reset          (reset),
+  //
+  .trxClock       (trxClock),
   .disabledGroups (disabledGroupsReg),
   .write          (send),
   .wrdata         (wrdata),
   .id             (id),
   .xon            (xon),
   .xoff           (xoff),
-  .tx             (tx),
-  .busy           (busy)
+  .busy           (busy),
+  // UART signals
+  .uart_tx        (uart_tx)
 );
 
 endmodule

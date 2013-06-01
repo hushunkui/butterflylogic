@@ -36,19 +36,17 @@
 
 `timescale 1ns/100ps
 
-`define COMM_TYPE_SPI 1		// comment out for UART mode
-
 module Logic_Sniffer #(
 `ifdef COMM_TYPE_SPI
   parameter [31:0] MEMORY_DEPTH=6,
   parameter [31:0] CLOCK_SPEED=50,
-  parameter  [1:0] SPEED=2'b00
-`else
+`elsif COMM_TYPE_UART
   // Sets the speed for UART communications
   // SYSTEM_JITTER = "1000 ps"
   parameter FREQ = 100000000,       // limited to 100M by onboard SRAM
   parameter TRXSCALE = 28,          // 100M / 28 / 115200 = 31 (5bit)  --If serial communications are not working then try adjusting this number.
-  parameter RATE = 115200           // maximum & base rate
+  parameter RATE = 115200,           // maximum & base rate
+  parameter  [1:0] SPEED=2'b00
 `endif
 )(
   // system signals
@@ -71,8 +69,8 @@ module Logic_Sniffer #(
   input  wire        spi_mosi,
   output wire        spi_miso
 `else
-  input  wire        rx,
-  output wire        tx
+  input  wire        uart_rx,
+  output wire        uart_tx
 `endif
 );
 
@@ -272,26 +270,30 @@ spi_slave spi_slave (
   .spi_miso   (spi_miso)
 );
 
-`else 
+`elsif COMM_TYPE_SPI
 
-eia232 #(
+uart #(
   .FREQ     (FREQ),
   .SCALE    (TRXSCALE),
   .RATE     (RATE)
-) eia232 (
+) uart (
+  // system signals
   .clock    (sys_clk),
   .reset    (sys_rst),
+  // input stream
+  .wrdata   (sram_rddata),
+  .send     (send),
+  // output configuration
   .speed    (SPEED),
-  .rx       (rx),
-  .tx       (tx),
   .cmd      (cmd),
   .execute  (execute),
-  .data     (output),
-  .send     (send),
-  .busy     (busy)
+  .busy     (busy),
+  // UART signals
+  .uart_rx  (uart_rx),
+  .uart_tx  (uart_tx)
 );
 
-`endif 
+`endif // COMM_TYPE_*
 
 //
 // Instantiate core...
