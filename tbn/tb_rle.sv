@@ -174,7 +174,6 @@ assign sti_ready = 1'b1;
 // waveform related code
 ////////////////////////////////////////////////////////////////////////////////
 
-`define WAVE
 initial $timeformat (-9,1," ns",0);
 `ifdef WAVE
 initial 
