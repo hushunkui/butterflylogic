@@ -37,17 +37,8 @@
 `timescale 1ns/100ps
 
 module Logic_Sniffer #(
-`ifdef COMM_TYPE_SPI
-  parameter [31:0] MEMORY_DEPTH=6,
-  parameter [31:0] CLOCK_SPEED=50,
-`elsif COMM_TYPE_UART
-  // Sets the speed for UART communications
-  // SYSTEM_JITTER = "1000 ps"
-  parameter FREQ = 100000000,       // limited to 100M by onboard SRAM
-  parameter TRXSCALE = 28,          // 100M / 28 / 115200 = 31 (5bit)  --If serial communications are not working then try adjusting this number.
-  parameter RATE = 115200,           // maximum & base rate
-  parameter  [1:0] SPEED=2'b00
-`endif
+  parameter MEMORY_DEPTH=6,
+  parameter CLOCK_SPEED=50
 )(
   // system signals
   input  wire        bf_clock,
@@ -63,15 +54,10 @@ module Logic_Sniffer #(
   output wire        armLEDnn,
   output wire        triggerLEDnn,
   // host interface
-`ifdef COMM_TYPE_SPI
   input  wire        spi_sclk,
   input  wire        spi_cs_n,
   input  wire        spi_mosi,
   output wire        spi_miso
-`else
-  input  wire        uart_rx,
-  output wire        uart_tx
-`endif
 );
 
 // system signals
@@ -248,7 +234,6 @@ dly_signal dataReady_reg (sys_clk, busy, dataReady);
 //
 // Instantiate serial interface....
 //
-`ifdef COMM_TYPE_SPI
 
 spi_slave spi_slave (
   // system signals
@@ -269,31 +254,6 @@ spi_slave spi_slave (
   .spi_mosi   (spi_mosi),
   .spi_miso   (spi_miso)
 );
-
-`elsif COMM_TYPE_SPI
-
-uart #(
-  .FREQ     (FREQ),
-  .SCALE    (TRXSCALE),
-  .RATE     (RATE)
-) uart (
-  // system signals
-  .clock    (sys_clk),
-  .reset    (sys_rst),
-  // input stream
-  .wrdata   (sram_rddata),
-  .send     (send),
-  // output configuration
-  .speed    (SPEED),
-  .cmd      (cmd),
-  .execute  (execute),
-  .busy     (busy),
-  // UART signals
-  .uart_rx  (uart_rx),
-  .uart_tx  (uart_tx)
-);
-
-`endif // COMM_TYPE_*
 
 //
 // Instantiate core...
