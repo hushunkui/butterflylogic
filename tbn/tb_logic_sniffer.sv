@@ -1,6 +1,9 @@
 `timescale 1ns/100ps
 
-module testbench();
+module tb #(
+  parameter FILENAME_TX = "uart_txd.fifo",
+  parameter FILENAME_RX = "uart_rxd.fifo"
+);
 
 // system clock source
 logic bf_clock;
@@ -23,6 +26,10 @@ logic [31:0] extData_reg;
 
 assign extData = extData_reg;
 
+`ifdef MODELSIM
+glbl glbl ();
+`endif
+
 Logic_Sniffer sniffer (
   // system signals
   .bf_clock      (bf_clock),
@@ -35,12 +42,19 @@ Logic_Sniffer sniffer (
   .dataReady     (dataReady),
   .armLEDnn      (armLEDnn),
   .triggerLEDnn  (triggerLEDnn),
+`ifdef COMM_TYPE_SPI
   // SPI signals
   .spi_cs_n      (spi_cs_n),
   .spi_sclk      (spi_sclk),
   .spi_miso      (spi_miso),
   .spi_mosi      (spi_mosi)
+`elsif COMM_TYPE_UART
+  .uart_tx       (uart_tx),
+  .uart_rx       (uart_rx)
+`endif
 );
+
+`ifdef COMM_TYPE_SPI
 
 spi_master #(
   .PERIOD (100)
@@ -51,9 +65,7 @@ spi_master #(
   .mosi (spi_mosi)
 );
 
-//
 // Generate SPI test commands...
-//
 task write_cmd (input logic [7:0] dmosi);
   logic [7:0] dmiso;
 begin
@@ -61,6 +73,29 @@ begin
   $display ("%t: SPI: (0x%02x) '%c'",$realtime, dmiso, dmiso);
 end
 endtask: write_cmd
+
+`elsif COMM_TYPE_UART
+
+uart_model #(
+) uart (
+  .TxD  (uart_tx),
+  .RxD  (uart_rx)
+);
+
+// Generate UART test commands...
+task write_cmd (input logic [7:0] dat);
+begin
+//  uart.transmit (dat);
+  $display ("%t: UART TxD: (0x%02x) '%c'",$realtime, dat, dat);
+end
+endtask: write_cmd
+
+initial begin
+//  uart.start (FILENAME_TX, FILENAME_RX);
+  uart.start ("uart_txd.fifo", "uart_rxd.fifo");
+end
+
+`endif
 
 task write_longcmd (
   input  [7:0] opcode,

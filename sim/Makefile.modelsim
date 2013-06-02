@@ -45,24 +45,27 @@ TBN_SPI = ../tbn/spi_master.sv
 TBN_STR = ../tbn/str.sv
 
 ifdef WAVE
-OPT = -g2012 -I rtl -D ICARUS -D WAVE
+OPT = +define+MODELSIM +define+WAVE
 else
-OPT = -g2012 -I rtl -D ICARUS
+OPT = +define+MODELSIM
 endif
 
 all: shifter adv rle top_spi top_uart
 
-shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
-	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out
-	vvp -n -l shifter.log shifter.out
+work:
+	vlib work
+
+shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v work
+	vsim $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
+	vsim -c -do 'run -all; quit' tb_shifter
 
 adv: ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
-	iverilog $(OPT) ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v -o adv.out
-	vvp -n -l adv.log adv.out
+	svim $(OPT) ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
+	vsim -c -do 'run -all; quit' tb_adv
 
-rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
-	iverilog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v -o rle.out
-	vvp -n -l rle.log rle.out
+rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v work
+	vlog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
+	vsim -c -do 'run -all; quit' tb_rle
 
 uart_txd.fifo:
 	touch uart_txd.fifo
@@ -72,13 +75,13 @@ uart_rxd.fifo:
 
 pipe: uart_txd.fifo uart_rxd.fifo
 
-top_spi: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
-	iverilog $(OPT) -D COMM_TYPE_SPI ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
-	vvp -n -l full.log full.out
+top_spi: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) work
+	vlog $(OPT) +define+COMM_TYPE_SPI ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
+	vsim -c -do 'run -all; quit' tb
 
-top_uart: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) pipe
-	iverilog $(OPT) -D COMM_TYPE_UART ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) -o full.out
-	vvp -n -l full.log full.out
+top_uart: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) work pipe
+	vlog $(OPT) +define+COMM_TYPE_UART ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB)
+	vsim -c -do 'run -all; quit' tb
 
 gtk:
 	gtkwave waves.dump waves.sav
