@@ -33,7 +33,7 @@
 module uart #(
   parameter [31:0] FREQ    = 100000000,
   parameter [31:0] SCALE   = 28,
-  parameter [31:0] RATE    = 115200,
+  parameter [31:0] BAUDRATE = 115200,
   parameter        TRXFREQ = FREQ / SCALE  // reduced rx & tx clock for receiver and transmitter
 )(
   // system signals
@@ -109,7 +109,7 @@ assign trxClock = 1;
 //
 uart_rx #(
   .FREQ(TRXFREQ),
-  .RATE(RATE)
+  .BAUDRATE(BAUDRATE)
 ) rx (
   // system signals
   .clock    (clock),
@@ -130,7 +130,7 @@ uart_rx #(
 //
 uart_tx #(
   .FREQ(TRXFREQ),
-  .RATE(RATE)
+  .BAUDRATE(BAUDRATE)
 ) tx (
   // system signals
   .clock          (clock),

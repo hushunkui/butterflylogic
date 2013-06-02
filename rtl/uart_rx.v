@@ -38,8 +38,8 @@
 
 module uart_rx #(
   parameter [31:0] FREQ = 100000000,
-  parameter [31:0] RATE = 115200,
-  parameter BITLENGTH = FREQ / RATE  // 100M / 115200 ~= 868
+  parameter [31:0] BAUDRATE = 115200,
+  parameter BITLENGTH = FREQ / BAUDRATE  // 100M / 115200 ~= 868
 )(
   // system signals
   input  wire        clock,

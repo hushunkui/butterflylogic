@@ -22,7 +22,6 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/decoder.v         \
           ../rtl/delay_fifo.v      \
           ../rtl/flags.v           \
-          ../rtl/Logic_Sniffer.v   \
           ../rtl/meta.v            \
           ../rtl/regs.v            \
           ../rtl/rle_enc.v         \
@@ -72,12 +71,12 @@ uart_rxd.fifo:
 
 pipe: uart_txd.fifo uart_rxd.fifo
 
-top_spi: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
-	iverilog $(OPT) -D COMM_TYPE_SPI ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
+Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
+	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
 	vvp -n -l full.log full.out
 
-top_uart: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) pipe
-	iverilog $(OPT) -D COMM_TYPE_UART ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) -o full.out
+Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB) pipe
+	iverilog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB) -o full.out
 	vvp -n -l full.log full.out
 
 gtk:

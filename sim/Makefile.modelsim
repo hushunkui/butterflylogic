@@ -22,7 +22,6 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/decoder.v         \
           ../rtl/delay_fifo.v      \
           ../rtl/flags.v           \
-          ../rtl/Logic_Sniffer.v   \
           ../rtl/meta.v            \
           ../rtl/regs.v            \
           ../rtl/rle_enc.v         \
@@ -75,12 +74,12 @@ uart_rxd.fifo:
 
 pipe: uart_txd.fifo uart_rxd.fifo
 
-top_spi: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) work
-	vlog $(OPT) +define+COMM_TYPE_SPI ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
+Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) work
+	vlog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
 	vsim -c -do 'run -all; quit' tb
 
-top_uart: ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB) work pipe
-	vlog $(OPT) +define+COMM_TYPE_UART ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_UART) $(LIB)
+Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB) work pipe
+	vlog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB)
 	vsim -c -do 'run -all; quit' tb
 
 gtk:
