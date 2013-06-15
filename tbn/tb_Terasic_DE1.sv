@@ -10,11 +10,12 @@ logic bf_clock;
 initial    bf_clock = 1'b0;
 always #10 bf_clock = ~bf_clock;
 
-// SPI signals
-wire spi_sclk;
-wire spi_cs_n;
-wire spi_mosi;
-wire spi_miso;
+int fp_tx;
+int fp_rx;
+
+// UART signals
+wire uart_tx;
+wire uart_rx;
 
 //
 // Instantiate the Logic Sniffer...
@@ -61,8 +62,10 @@ end
 endtask: write_cmd
 
 initial begin
-//  uart.start (FILENAME_TX, FILENAME_RX);
-  uart.start ("uart_txd.fifo", "uart_rxd.fifo");
+  fp_tx = $fopen (FILENAME_TX, "r");
+  fp_rx = $fopen (FILENAME_RX, "w");
+
+  uart.start (FILENAME_TX, FILENAME_RX);
 end
 
 task write_longcmd (
