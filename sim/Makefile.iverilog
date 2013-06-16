@@ -1,13 +1,17 @@
-DIR_XILINX = ~/Xilinx/14.5/ISE_DS/ISE/verilog/src/unisims/
+DIR_XILINX = ~/Xilinx/14.5/ISE_DS/ISE/verilog/src/unisims
+DIR_ALTERA = ~/Altera/
 
-LIB     = $(DIR_XILINX)/BUFGMUX.v  \
-          $(DIR_XILINX)/BUFG.v     \
-          $(DIR_XILINX)/DCM.v      \
-          $(DIR_XILINX)/IOBUF.v    \
-          $(DIR_XILINX)/IBUF.v     \
-          $(DIR_XILINX)/ODDR2.v    \
-          $(DIR_XILINX)/IDDR2.v    \
-          $(DIR_XILINX)/../glbl.v
+LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
+             $(DIR_XILINX)/BUFG.v     \
+             $(DIR_XILINX)/DCM.v      \
+             $(DIR_XILINX)/IOBUF.v    \
+             $(DIR_XILINX)/IBUF.v     \
+             $(DIR_XILINX)/ODDR2.v    \
+             $(DIR_XILINX)/IDDR2.v    \
+             $(DIR_XILINX)/../glbl.v
+
+LIB_ALTERA =
+#LIB_ALTERA = $(DIR_ALTERA)/
 
 RTL_SPI = ../rtl/spi_receiver.v    \
           ../rtl/spi_slave.v       \
@@ -31,9 +35,7 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/sync.v            \
           ../rtl/timer.v           \
           ../rtl/trigger_adv.v     \
-          ../rtl/trigger.v         \
-          $(RTL_SPI)               \
-          $(RTL_UART)
+          ../rtl/trigger.v
 
 TBN_MIX = ../tbn/tb_shifter.sv \
           ../tbn/tb_adv.sv  \
@@ -71,12 +73,12 @@ uart_rxd.fifo:
 
 pipe: uart_txd.fifo uart_rxd.fifo
 
-Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)
-	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) -o full.out
+Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX)
+	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX) -o full.out
 	vvp -n -l full.log full.out
 
-Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB) pipe
-	iverilog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(TBN_UART) $(LIB) -o full.out
+Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) pipe
+	iverilog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) -o full.out
 	vvp -n -l full.log full.out
 
 gtk:

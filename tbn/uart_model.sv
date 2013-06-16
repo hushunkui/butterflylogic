@@ -67,7 +67,7 @@ int             bit_tx     , bit_rx     ;
 logic [DW-1:0]  c_tx       , c_rx       ;  // transferred character
 
 // transfer start condition and data sampling events for UART receiver
-event RxD_edge, sample;
+event sample;
 
 ////////////////////////////////////////////////////////////////////////////////
 // file handler                                                               //
@@ -117,6 +117,31 @@ endtask: stop
 ////////////////////////////////////////////////////////////////////////////////
 
 // transmitter
+task transmit (input bit [DW-1:0] c_tx);
+begin
+    // start bit
+    TxD = ~IDLE; #d;
+    // transmit bits LSB first
+    for (bit_tx=0; bit_tx<DW; bit_tx=bit_tx+1) begin
+      TxD = c_tx [bit_tx]; #d;
+    end
+    // send parity
+    case (PARITY)
+      "ODD"  : begin  TxD = ~^c_tx; #d;  end
+      "EVEN" : begin  TxD =  ^c_tx; #d;  end
+      "NONE" : begin                     end
+    endcase
+    // increment counter
+    cnt_tx = cnt_tx + 1;
+    // stop bits
+    for (bit_tx=DW; bit_tx<DW+SW; bit_tx=bit_tx+1) begin
+      TxD = IDLE; #d;
+    end
+end
+endtask
+
+/*
+// transmitter
 always @ (posedge run_tx) begin
   while (run_tx) begin
     while ($feof(fp_tx)) begin end
@@ -125,7 +150,6 @@ always @ (posedge run_tx) begin
     TxD = ~IDLE; #d;
     // transmit bits LSB first
     for (bit_tx=0; bit_tx<DW; bit_tx=bit_tx+1) begin
-      //{c_tx [DW-2:0], TxD} = c_tx;
       TxD = c_tx [bit_tx]; #d;
     end
     // send parity
@@ -142,19 +166,16 @@ always @ (posedge run_tx) begin
     end
   end
 end
-
+*/
 // receiver
-always @ (posedge (RxD ^ IDLE)) -> RxD_edge;
-
 always @ (posedge run_rx) begin
   while (run_rx) begin
-    @ (RxD_edge) begin
+    @ (posedge (RxD ^ IDLE)) begin
       #(d/2);
       // check the start bit
       if (RxD != ~IDLE)  $display ("DEBUG: start bit error."); #d;
       // sample in the middle of each bit
       for (bit_rx=0; bit_rx<DW; bit_rx=bit_rx+1) begin
-        //c_rx = {c_rx [DW-2:0], RxD};
         -> sample;
         c_rx [bit_rx] = RxD; #d;
       end
@@ -172,6 +193,5 @@ always @ (posedge run_rx) begin
     end
   end
 end
-
 
 endmodule: uart_model

@@ -5,13 +5,20 @@ module tb #(
   parameter FILENAME_RX = "uart_rxd.fifo"
 );
 
-// system clock source
-logic bf_clock;
-initial    bf_clock = 1'b0;
-always #10 bf_clock = ~bf_clock;
+// system clock/reset
+logic clk = 1'b1;
+logic rst = 1'b1;
 
+always #10ns clk = ~clk;
+
+initial begin
+  repeat (4) @ (posedge clk); rst <= 1'b0;
+end
+
+// UART file pointers
 int fp_tx;
 int fp_rx;
+int status;
 
 // UART signals
 wire uart_tx;
@@ -33,7 +40,8 @@ glbl glbl ();
 
 Terasic_DE1 la (
   // system signals
-  .bf_clock      (bf_clock),
+  .clk           (clk),
+  .rst           (rst),
   // logic analyzer signals
   .extClockIn    (extClockIn),
   .extClockOut   (extClockOut),
@@ -49,21 +57,25 @@ Terasic_DE1 la (
 
 uart_model #(
 ) uart (
-  .TxD  (uart_tx),
-  .RxD  (uart_rx)
+  .TxD  (uart_rx),
+  .RxD  (uart_tx)
 );
 
 // Generate UART test commands...
 task write_cmd (input logic [7:0] dat);
+  int cnt;
 begin
-//  uart.transmit (dat);
+  uart.transmit (dat);
+//  cnt = uart.cnt_tx;
+//  status = $ungetc (dat, fp_tx);
   $display ("%t: UART TxD: (0x%02x) '%c'",$realtime, dat, dat);
+//  wait (uart.cnt_tx == cnt+1);
 end
 endtask: write_cmd
 
 initial begin
-  fp_tx = $fopen (FILENAME_TX, "r");
-  fp_rx = $fopen (FILENAME_RX, "w");
+  fp_tx = $fopen (FILENAME_TX, "w");
+  fp_rx = $fopen (FILENAME_RX, "r");
 
   uart.start (FILENAME_TX, FILENAME_RX);
 end
@@ -91,39 +103,6 @@ end
 endtask: wait4fpga
 
 
-
-// 32 bit sampling of every 3rd clock...
-task setup_divider;
-begin
-  $display ("%t: Reset for TEST_DIVIDER...", $realtime);
-  write_cmd (8'h00); 
-
-  $display ("%t: Default Setup Trigger 0...", $realtime);
-  write_longcmd (8'hC0, 32'h000000FF); // mask
-  write_longcmd (8'hC1, 32'h00000040); // value
-  write_longcmd (8'hC2, 32'h08000000); // config
-
-  $display ("%t: Flags... (int testmode, sample all channels)", $realtime);
-  write_longcmd (8'h82, 32'h00000800); // set int testmode
-
-  $display ("%t: Divider... (sample every 3rd clock)", $realtime);
-  write_longcmd (8'h80, 32'h00000002);
-
-  $display ("%t: Read & Delay Count...", $realtime);
-  write_longcmd (8'h81, 32'h000f000f);
-
-  $display ("%t: Starting TEST1...", $realtime);
-  $display ("%t: RUN...", $realtime);
-  write_cmd (8'h01); 
-
-  wait4fpga();
-
-  repeat (5) @(posedge bf_clock); 
-  $finish;
-end
-endtask: setup_divider
-
-
 // 100Mhz sampling...
 task setup_channel;
 input [3:0] channel_disable;
@@ -149,116 +128,14 @@ end
 endtask: setup_channel
 
 
-// Test to ensure first sample, when RLE enabled, is always a <value> & not <rle-count>...
-task setup_rle_test;
-begin
-  $display ("%t: Reset for TEST_RLE...", $realtime);
-  write_cmd (8'h00); 
-
-  $display ("%t: Default Setup Trigger 0...", $realtime);
-  write_longcmd (8'hC0, 32'h00000000); // mask
-  write_longcmd (8'hC1, 32'h00000000); // value
-  write_longcmd (8'hC2, 32'h08000000); // config
-
-  $display ("%t: Flags...  8-bit & rle", $realtime);
-  write_longcmd (8'h82, 32'h00000100 | {4'hE,2'b00}); // set rle bit & 8-bit sampling
-
-  $display ("%t: Divider... (max sample rate)", $realtime);
-  write_longcmd (8'h80, 32'h00000000);
-
-  $display ("%t: Read & Delay Count...", $realtime);
-  write_longcmd (8'h81, 32'h000f000f);
-
-  extData_reg = 0;
-  fork
-    begin
-      $display ("%t: Starting 5%% buffer prefetch test...", $realtime);
-      $display ("%t: RUN...", $realtime);
-      write_cmd (8'h01); 
-
-      wait4fpga();
-      repeat (5) @(posedge bf_clock); 
-
-      $display ("%t: Test clearing of rle mask_flag on reset...", $realtime);
-      write_cmd (8'h00); // reset should turn off mask_flag 
-      repeat (20) @(posedge bf_clock); 
-      $finish;
-    end
-    begin
-      repeat (1) @(posedge bf_clock); 
-      repeat (1000) begin
-        repeat (5) @(posedge bf_clock); 
-        extData_reg[2] = 1;
-        repeat (5) @(posedge bf_clock); 
-        extData_reg[2] = 0;
-      end
-    end
-    begin
-      repeat (5000) begin
-        @(posedge bf_clock);
-        extData_reg[7] = bf_clock;
-        @(negedge bf_clock);
-        extData_reg[7] = bf_clock;
-      end
-    end
-    begin
-      repeat (80) @(posedge bf_clock);
-      $display ("%t: Test RLE-mode cancel command...", $realtime);
-      write_cmd (8'h05); // test canceling rle mode
-    end
-  join
-end
-endtask: setup_rle_test
-
-
-// Test max sample rate (ie: DDR sampling at reference clock)...
-task setup_maxsamplerate_test;
-begin
-  $display ("%t: Reset for TEST_MAXRATE...", $realtime);
-  write_cmd (8'h00); 
-
-  $display ("%t: Default Setup Trigger 0...", $realtime);
-  write_longcmd (8'hC0, 32'h00000000); // mask
-  write_longcmd (8'hC1, 32'h00000000); // value
-  write_longcmd (8'hC2, 32'h08000000); // config
-
-  $display ("%t: Flags...  Demux mode (DDR sample rate)", $realtime);
-  write_longcmd (8'h82, 32'h00000000 | {4'hA,2'b01}); // set demux & 8 bit sampling
-
-  $display ("%t: Divider... (max sample rate)", $realtime);
-  write_longcmd (8'h80, 32'h00000000);
-
-  $display ("%t: Read & Delay Count...", $realtime);
-  write_longcmd (8'h81, 32'h000f000f);
-
-  fork
-    begin
-      $display ("%t: Starting DDR max sample rate test...", $realtime);
-      $display ("%t: RUN...", $realtime);
-      write_cmd (8'h01); 
-
-      wait4fpga();
-      repeat (5) @(posedge bf_clock); 
-      $finish;
-    end
-    begin
-      repeat (1) @(posedge bf_clock); 
-      repeat (2000) begin
-        #5; extData_reg = extData_reg+1;
-      end
-    end
-  join
-end
-endtask: setup_maxsamplerate_test
-
-
 //
 // Generate test sequence...
 //
 initial
 begin
   extData_reg = 0;
-  #100;
+  wait (~rst);
+  repeat (2) @ (posedge clk);
 
   $display ("%t: Reset...", $realtime);
   repeat (5)
@@ -271,20 +148,8 @@ begin
   $display ("%t: Query Meta data...", $realtime);
   write_cmd (8'h04); 
   wait4fpga();
-  repeat (5) @(posedge bf_clock); 
+  repeat (5) @(posedge clk); 
   $finish;
-`endif
-
-`ifdef TEST_RLE
-  setup_rle_test;
-`endif
-
-`ifdef TEST_MAXRATE
-  setup_maxsamplerate_test;
-`endif
-
-`ifdef TEST_DIVIDER
-  setup_divider;
 `endif
 
   //
