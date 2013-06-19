@@ -144,14 +144,14 @@ assign run = run_basic | run_adv | sampled_extTriggerIn;
 //
 // Logic Sniffers LEDs are connected to 3.3V so a logic 0 turns the LED on.
 //
-always @ (posedge sys_clk, posedge sys_clk)
+always @ (posedge sys_clk, posedge sys_rst)
 if (sys_rst)    indicator_arm <= 1'b0;
 else begin
   if      (arm) indicator_arm <= 1'b1;
   else if (run) indicator_arm <= 1'b0;
 end
 
-always @(posedge sys_clk)
+always @(posedge sys_clk, posedge sys_rst)
 if (sys_rst)    indicator_trg <= 1'b0;
 else begin
   if      (run) indicator_trg <= 1'b1;
