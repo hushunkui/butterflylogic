@@ -31,10 +31,6 @@
 //--------------------------------------------------------------------------------
 //
 
-`define BRAM_MAX_ADDRESS 6*1024-1  // 6K x 36
-`define BRAM_MAXINDEX 12  // 12:0 = 8K
-`define BRAM_MAXDATA 35
-
 `timescale 1ns/100ps
 
 module sram_interface #(
