@@ -85,6 +85,8 @@ assign {config_data,opcode} = cmd;
 logic sys_clk;
 logic sys_rst;
 
+assign sys_clk = clk;
+
 always @ (posedge clk, posedge rst)
 if (rst) sys_rst <= 1'b1;
 else     sys_rst <= 1'b0;
@@ -98,6 +100,8 @@ wire [31:0] sti_data;
 
 assign sti_clk  = extClockIn;
 assign sti_data = extData;
+
+assign extClockOut = clk;
 
 //--------------------------------------------------------------------------------
 // rtl instances
@@ -156,11 +160,11 @@ core #(
   .stableInput     (stableInput),
   .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
-  .armLEDnn        (armLEDnn),
-  .triggerLEDnn    (triggerLEDnn),
   .wrFlags         (wrFlags),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
+  .indicator_arm   (armLEDnn),
+  .indicator_trg   (triggerLEDnn),
   // memory interface
   .memoryWrData    (sram_wrdata),
   .memoryRead      (read),

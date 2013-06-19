@@ -281,11 +281,11 @@ core #(
   .stableInput     (stableInput),
   .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
-  .armLEDnn        (armLEDnn),
-  .triggerLEDnn    (triggerLEDnn),
   .wrFlags         (wrFlags),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
+  .indicator_arm   (armLEDnn),
+  .indicator_trg   (triggerLEDnn),
   // memory interface
   .memoryWrData    (sram_wrdata),
   .memoryRead      (read),

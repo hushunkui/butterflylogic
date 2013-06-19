@@ -34,8 +34,6 @@
 // 
 
 `timescale 1ns/100ps
-//`define HEARTBEAT
-//`define SLOW_EXTCLK
 
 module core #(
   parameter integer SDW = 32,  // sample data width
@@ -54,11 +52,11 @@ module core #(
   output wire           sampleReady50,
   output wire           outputSend,
   output wire           extTriggerOut,
-  output reg            armLEDnn,
-  output reg            triggerLEDnn,
   output wire           wrFlags,
   output wire           extClock_mode,
   output wire           extTestMode,
+  output reg            indicator_arm,
+  output reg            indicator_trg,
   // input stream
   input  wire           sti_clk,
   input  wire [SDW-1:0] sti_data_p,
@@ -146,24 +144,19 @@ assign run = run_basic | run_adv | sampled_extTriggerIn;
 //
 // Logic Sniffers LEDs are connected to 3.3V so a logic 0 turns the LED on.
 //
-`ifdef HEARTBEAT
-reg [31:0] hcount;
-initial hcount=0;
-
-always @ (posedge sys_clk)
-hcount <= (~|hcount) ? 100000000 : (hcount-1'b1);
-
-always @ (posedge sys_clk)
-if (~|hcount) armLEDnn <= !armLEDnn;
-`else
-always @ (posedge sys_clk)
-if      (arm) armLEDnn <= ~1'b1;
-else if (run) armLEDnn <= ~1'b0;
-`endif
+always @ (posedge sys_clk, posedge sys_clk)
+if (sys_rst)    indicator_arm <= 1'b0;
+else begin
+  if      (arm) indicator_arm <= 1'b1;
+  else if (run) indicator_arm <= 1'b0;
+end
 
 always @(posedge sys_clk)
-if      (run) triggerLEDnn <= ~1'b1;
-else if (arm) triggerLEDnn <= ~1'b0;
+if (sys_rst)    indicator_trg <= 1'b0;
+else begin
+  if      (run) indicator_trg <= 1'b1;
+  else if (arm) indicator_trg <= 1'b0;
+end
 
 //
 // Decode commands & config registers...
