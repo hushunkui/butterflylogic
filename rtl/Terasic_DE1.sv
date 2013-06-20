@@ -38,11 +38,8 @@
 
 module Terasic_DE1 #(
   // Sets the speed for UART communications
-  // SYSTEM_JITTER = "1000 ps"
-  parameter FREQ = 100000000,       // limited to 100M by onboard SRAM
-  parameter TRXSCALE = 28,          // 100M / 28 / 115200 = 31 (5bit)  --If serial communications are not working then try adjusting this number.
-  parameter BAUDRATE = 115200,           // maximum & base rate
-  parameter  [1:0] SPEED=2'b00
+  parameter FREQ = 50_000_000,  // 50MHz
+  parameter BAUD = 921_600      // 
 )(
   // system signals
   input  wire        clk,
@@ -113,18 +110,16 @@ assign dataReady = busy;
 // Instantiate serial interface....
 //
 uart #(
-  .FREQ     (FREQ),
-  .SCALE    (TRXSCALE),
-  .BAUDRATE (BAUDRATE)
+  .FREQ (FREQ),
+  .BAUD (BAUD)
 ) uart (
   // system signals
-  .clock    (sys_clk),
-  .reset    (sys_rst),
+  .clk      (sys_clk),
+  .rst      (sys_rst),
   // input stream
   .wrdata   (sram_rddata),
   .send     (send),
   // output configuration
-  .speed    (SPEED),
   .cmd      (cmd),
   .execute  (execute),
   .busy     (busy),

@@ -31,19 +31,16 @@
 `timescale 1ns/100ps
 
 module uart #(
-  parameter [31:0] FREQ    = 100000000,
-  parameter [31:0] SCALE   = 28,
-  parameter [31:0] BAUDRATE = 115200,
-  parameter        TRXFREQ = FREQ / SCALE  // reduced rx & tx clock for receiver and transmitter
+  parameter integer FREQ = 50_000_000,
+  parameter integer BAUD = 921_600
 )(
   // system signals
-  input  wire        clock,
-  input  wire        reset,
+  input  wire        clk,
+  input  wire        rst,
   // data stream
   input  wire        send,	// Send data output serial tx
   input  wire [31:0] wrdata,	// Data to be sent
   //
-  input  wire  [1:0] speed,	// UART speed
   output wire [39:0] cmd,
   output wire        execute,	// Cmd is valid
   output wire        busy,	// Indicates transmitter busy
@@ -52,13 +49,12 @@ module uart #(
   output wire        uart_tx   // Serial TX
 );
 
-wire trxClock; 
-reg id, next_id; 
-reg xon, next_xon; 
-reg xoff, next_xoff; 
-reg wrFlags, next_wrFlags;
-reg dly_execute, next_dly_execute; 
-reg [3:0] disabledGroupsReg, next_disabledGroupsReg;
+reg id; 
+reg xon; 
+reg xoff; 
+reg wrFlags;
+reg dly_execute; 
+reg [3:0] disabledGroupsReg;
 
 wire [7:0] opcode;
 wire [31:0] opdata;
@@ -67,55 +63,40 @@ assign cmd = {opdata,opcode};
 //
 // Process special uart commands that do not belong in core decoder...
 //
-always @(posedge clock) 
-begin
-  id                <= next_id;
-  xon               <= next_xon;
-  xoff              <= next_xoff;
-  wrFlags           <= next_wrFlags;
-  dly_execute       <= next_dly_execute;
-  disabledGroupsReg <= next_disabledGroupsReg;
+always @(posedge clk, posedge rst) 
+if (rst) begin
+  id      <= 1'b0;
+  xon     <= 1'b0;
+  xoff    <= 1'b0;
+  wrFlags <= 1'b0;
+  disabledGroupsReg <= 4'b0000;
+end else begin
+  if (~dly_execute & execute)
+  case(opcode)
+    8'h02 : id      <= 1'b1;
+    8'h11 : xon     <= 1'b1;
+    8'h13 : xoff    <= 1'b1;
+    8'h82 : wrFlags <= 1'b1;
+  endcase
+  if (wrFlags) disabledGroupsReg <= opdata[5:2];
 end
 
-always @ *
-begin
-  next_id = 1'b0;
-  next_xon = 1'b0;
-  next_xoff = 1'b0;
-  next_wrFlags = 1'b0;
-  next_dly_execute = execute;
-  if (!dly_execute && execute)
-    case(opcode)
-      8'h02 : next_id = 1'b1;
-      8'h11 : next_xon = 1'b1;
-      8'h13 : next_xoff = 1'b1;
-      8'h82 : next_wrFlags = 1'b1;
-    endcase
-
-  next_disabledGroupsReg = disabledGroupsReg;
-  if (wrFlags) next_disabledGroupsReg = opdata[5:2];
-end
-
-
-//
-// Instantiate prescaler that generates clock matching UART reference (ie: 115200 baud)...
-//
-
-assign trxClock = 1;
+always @(posedge clk, posedge rst) 
+if (rst)  dly_execute <= 1'b0;
+else      dly_execute <= execute;
 
 //
 // Instantiate serial-to-parallel receiver.  
 // Asserts "execute" whenever valid 8-bit value received.
 //
 uart_rx #(
-  .FREQ(TRXFREQ),
-  .BAUDRATE(BAUDRATE)
+  .FREQ (FREQ),
+  .BAUD (BAUD)
 ) rx (
   // system signals
-  .clock    (clock),
-  .reset    (reset),
+  .clk      (clk),
+  .rst      (rst),
   //
-  .trxClock (trxClock),
   .op       (opcode),
   .data     (opdata),
   .execute  (execute),
@@ -129,14 +110,13 @@ uart_rx #(
 // Obeys xon/xoff commands.
 //
 uart_tx #(
-  .FREQ(TRXFREQ),
-  .BAUDRATE(BAUDRATE)
+  .FREQ (FREQ),
+  .BAUD (BAUD)
 ) tx (
   // system signals
-  .clock          (clock),
-  .reset          (reset),
+  .clk            (clk),
+  .rst            (rst),
   //
-  .trxClock       (trxClock),
   .disabledGroups (disabledGroupsReg),
   .write          (send),
   .wrdata         (wrdata),

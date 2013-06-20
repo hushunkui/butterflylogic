@@ -37,15 +37,15 @@
 `timescale 1ns/100ps
 
 module uart_rx #(
-  parameter [31:0] FREQ = 100000000,
-  parameter [31:0] BAUDRATE = 115200,
-  parameter BITLENGTH = FREQ / BAUDRATE  // 100M / 115200 ~= 868
+  parameter integer FREQ = 50_000_000,
+  parameter integer BAUD = 921_600,
+  parameter integer BITLENGTH = FREQ / BAUD, // 54
+  parameter integer CW = $clog2(BITLENGTH) // counter width
 )(
   // system signals
-  input  wire        clock,
-  input  wire        reset,
+  input  wire        clk,
+  input  wire        rst,
   //
-  input  wire        trxClock,
   output wire  [7:0] op,
   output wire [31:0] data,
   output reg         execute,
@@ -54,128 +54,113 @@ module uart_rx #(
 );
 
 localparam [2:0]
-  INIT =      3'h0,
-  WAITSTOP =  3'h1,
+  INIT      = 3'h0,
+  WAITSTOP  = 3'h1,
   WAITSTART = 3'h2,
   WAITBEGIN = 3'h3,
-  READBYTE =  3'h4,
-  ANALYZE =   3'h5,
-  READY =     3'h6;
+  READBYTE  = 3'h4,
+  ANALYZE   = 3'h5,
+  READY     = 3'h6;
 
-reg [9:0] counter, next_counter;  // clock prescaling counter
-reg [3:0] bitcount, next_bitcount;  // count rxed bits of current byte
-reg [2:0] bytecount, next_bytecount;  // count rxed bytes of current command
-reg [2:0] state, next_state;  // receiver state
-reg [7:0] opcode, next_opcode;  // opcode byte
-reg [31:0] databuf, next_databuf;  // data dword
-reg next_execute;
+reg  [9:0] counter;  // clock prescaling counter
+reg  [3:0] bitcount;  // count rxed bits of current byte
+reg  [2:0] bytecount;  // count rxed bytes of current command
+reg  [2:0] state;  // receiver state
+reg  [7:0] opcode;  // opcode byte
+reg [31:0] databuf;  // data dword
 
 assign op = opcode;
 assign data = databuf;
 
-always @(posedge clock, posedge reset) 
-if (reset) state <= INIT;
-else       state <= next_state;
-
-always @(posedge clock) 
-begin
-  counter   <= next_counter;
-  bitcount  <= next_bitcount;
-  bytecount <= next_bytecount;
-  databuf   <= next_databuf;
-  opcode    <= next_opcode;
-  execute   <= next_execute;
-end
-
-always @ *
-begin
-  next_state = state;
-  next_counter = counter;
-  next_bitcount = bitcount;
-  next_bytecount = bytecount;
-  next_opcode = opcode;
-  next_databuf = databuf;
-  next_execute = 1'b0;
-
+always @(posedge clk, posedge rst) 
+if (rst) begin
+  state     <= INIT;
+  counter   <= 0;
+  bitcount  <= 0;
+  bytecount <= 0;
+  databuf   <= 0;
+  opcode    <= 0;
+  execute   <= 0;
+end else begin
   case(state)
     INIT : 
       begin
-        next_counter = 0;
-        next_bitcount = 0;
-	next_bytecount = 0;
-	next_opcode = 0;
-        next_databuf = 0;
-	next_state = WAITSTOP; 
+        counter   <= 0;
+        bitcount  <= 0;
+	bytecount <= 0;
+	opcode    <= 0;
+        databuf   <= 0;
+	state     <= WAITSTOP; 
       end
 
     WAITSTOP : // reset uart
       begin
-	if (uart_rx) next_state = WAITSTART; 
+	if (uart_rx) state <= WAITSTART; 
       end
 
     WAITSTART : // wait for start bit
       begin
-	if (!uart_rx) next_state = WAITBEGIN; 
+	if (!uart_rx) state <= WAITBEGIN; 
       end
 
     WAITBEGIN : // wait for first half of start bit
       begin
 	if (counter == (BITLENGTH / 2)) 
 	  begin
-	    next_counter = 0;
-	    next_state = READBYTE;
+	    counter <= 0;
+	    state <= READBYTE;
 	  end
-	else if (trxClock) 
-	  next_counter = counter + 1;
+	else 
+	  counter <= counter + 1;
       end
 
     READBYTE : // receive byte
       begin
 	if (counter == BITLENGTH) 
 	  begin
-	    next_counter = 0;
-	    next_bitcount = bitcount + 1;
+	    counter <= 0;
+	    bitcount <= bitcount + 1;
 	    if (bitcount == 4'h8) 
 	      begin
-		next_bytecount = bytecount + 1;
-		next_state = ANALYZE;
+		bytecount <= bytecount + 1;
+		state <= ANALYZE;
 	      end
 	    else if (bytecount == 0) 
 	      begin
-		next_opcode = {uart_rx,opcode[7:1]};
-		next_databuf = databuf;
+		opcode <= {uart_rx,opcode[7:1]};
+		databuf <= databuf;
 	      end
 	    else 
 	      begin
-		next_opcode = opcode;
-		next_databuf = {uart_rx,databuf[31:1]};
+		opcode <= opcode;
+		databuf <= {uart_rx,databuf[31:1]};
 	      end
 	  end
-	else if (trxClock)
-	  next_counter = counter + 1;
+	else
+	  counter <= counter + 1;
       end
 
     ANALYZE : // check if long or short command has been fully received
       begin
-	next_counter = 0;
-	next_bitcount = 0;
+	counter <= 0;
+	bitcount <= 0;
         if (bytecount == 3'h5) // long command when 5 bytes have been received
-	  next_state = READY;
+	  state <= READY;
         else if (!opcode[7]) // short command when set flag not set
-          next_state = READY;
-        else next_state = WAITSTOP; // otherwise continue receiving
+          state <= READY;
+        else state <= WAITSTOP; // otherwise continue receiving
     end
 
     READY : // done, give 10 cycles for processing
       begin
-	next_counter = counter + 1;
+	counter <= counter + 1;
 	if (counter == 4'd10)
-	  next_state = INIT;
-	else next_state = state;
+	  state <= INIT;
+	else state <= state;
       end
     endcase
 
-  next_execute = (next_state == READY);
+  execute <= (state == READY);
 end
 
 endmodule

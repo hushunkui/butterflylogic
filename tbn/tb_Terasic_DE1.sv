@@ -2,13 +2,16 @@
 
 module tb #(
   parameter FILENAME_TX = "uart_txd.fifo",
-  parameter FILENAME_RX = "uart_rxd.fifo"
+  parameter FILENAME_RX = "uart_rxd.fifo",
+  parameter int FREQ = 50_000_000,
+  parameter int BAUD = 921_600
 );
 
 // system clock/reset
 logic clk = 1'b1;
 logic rst = 1'b1;
 
+//always #(1s/FREQ/2) clk = ~clk;
 always #10ns clk = ~clk;
 
 initial begin
@@ -38,7 +41,10 @@ assign extData = extData_reg;
 glbl glbl ();
 `endif
 
-Terasic_DE1 la (
+Terasic_DE1 #(
+  .FREQ (FREQ),
+  .BAUD (BAUD)
+) la (
   // system signals
   .clk           (clk),
   .rst           (rst),
@@ -56,6 +62,7 @@ Terasic_DE1 la (
 );
 
 uart_model #(
+  .BAUD (BAUD)
 ) uart (
   .TxD  (uart_rx),
   .RxD  (uart_tx)
