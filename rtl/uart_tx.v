@@ -1,7 +1,10 @@
-//--------------------------------------------------------------------------------
-// transmitter.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2006 Michael Poppitz
+// UART transmitter
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+// 
+//////////////////////////////////////////////////////////////////////////////
 // 
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -17,158 +20,106 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
-//
-// Takes 32bit (one sample) and sends it out on the serial port.
-// End of transmission is signalled by taking back the busy flag.
-// Supports xon/xoff flow control.
-//
-//--------------------------------------------------------------------------------
-//
-// 12/29/2010 - Verilog Version + cleanups created by Ian Davis - mygizmos.org
-// 
+//////////////////////////////////////////////////////////////////////////////
 
-`timescale 1ns/100ps
-
-module uart_tx #( 
-  parameter integer FREQ = 50_000_000,
-  parameter integer BAUD = 921_600,
-  parameter integer BITLENGTH = FREQ / BAUD, // 54
-  parameter integer CW = $clog2(BITLENGTH) // counter width
+module uart_tx #(
+  parameter DW = 8,          // data width (size of data byte)
+  parameter PT = "NONE",     // parity type "EVEN", "ODD", "NONE"
+  parameter SW = 1,          // stop width (number of stop bits)
+  parameter BN = 2,          // time period number (number of clock periods per bit)
+  parameter BL = $clog2(BN)  // time period log(number) (size of boudrate generator counter)
 )(
   // system signals
-  input  wire        clk,
-  input  wire        rst,
-  //
-  input  wire  [3:0] disabledGroups,
-  input  wire        write,		// Data write request
-  input  wire [31:0] wrdata,		// Write data
-  input  wire        id,		// ID output request
-  input  wire        xon,		// Flow control request
-  input  wire        xoff,		// Resume output request
-  output reg         busy,		// Busy flag
-  // UART signals
-  output wire        uart_tx		// Serial tx data
+  input  wire          clk,  // clock
+  input  wire          rst,  // reset (asynchronous)
+  // data stream
+  input  wire          str_tvalid,
+  input  wire [DW-1:0] str_tdata ,
+  output wire          str_tready,
+  // UART
+  output reg           uart_txd
 );
 
-//
-// Registers...
-//
-reg [31:0] sampled_wrdata;
-reg [3:0] sampled_disabledGroups;
-reg [3:0] bits;
-reg [2:0] bytesel;
-reg paused;
-reg byteDone;
+// UART transfer width (length)
+localparam TW = DW + (PT!="NONE") + SW;
 
-reg [9:0] txBuffer;
-assign uart_tx = txBuffer[0];
+// stream signals
+wire          str_transfer;
 
-reg [9:0] counter;  // Big enough for FREQ/BAUDRATE (100Mhz/115200 ~= 868)
-wire counter_zero = ~|counter;
+// baudrate signals
+reg  [BL-1:0] txd_bdr;
+reg           txd_ena;
 
-wire writeByte; 
+// UART signals
+reg           txd_run;  // transfer run status
+reg     [3:0] txd_cnt;  // transfer length counter
+reg  [DW-1:0] txd_dat;  // data shift register
+reg           txd_prt;  // parity register
 
-//
-// Byte select mux...
-//
-wire [7:0] dbyte;
-wire       disabled;
+//////////////////////////////////////////////////////////////////////////////
+// UART transmitter
+//////////////////////////////////////////////////////////////////////////////
 
-assign dbyte = sampled_wrdata[8*bytesel[1:0]+:8];
-assign disabled = sampled_disabledGroups[bytesel[1:0]];
+// stream logic
+assign str_tready   = ~txd_run;
+assign str_transfer = str_tvalid & str_tready;
 
-// baud rate counter
+// baudrate generator from clock (it counts down to 0 generating a baud pulse)
 always @ (posedge clk, posedge rst)
-if (rst) begin
-  counter  <= 0;
-end else begin
-  if (writeByte) 
-    counter  <= BITLENGTH;
-  else if (counter_zero)
-    counter <= BITLENGTH;
-  else
-    counter <= counter - 1'b1;
-end
+if (rst) txd_bdr <= BN-1;
+else     txd_bdr <= ~|txd_bdr ? BN-1 : txd_bdr - txd_run;
 
-//
-// Send one byte...
-//
+// enable signal for shifting logic
 always @ (posedge clk, posedge rst)
-if (rst) begin
-  bits     <= 0;
-  byteDone <= 1'b0;
-end else begin
-  if (writeByte) 
-  begin
-    bits     <= 0;
-    byteDone <= 1'b0;
-  end
-  else if (counter_zero)
-  begin
-    if (bits == 4'hA)
-      byteDone <= 1'b1;
-    else bits <= bits + 1'b1;
-  end 
-end
+if (rst)  txd_ena <= 1'b0;
+else      txd_ena <= (txd_bdr == 'd1);
 
+// bit counter
 always @ (posedge clk, posedge rst)
-if (rst) begin
-  txBuffer <= 1;
-end else begin
-  if (writeByte)
-    txBuffer <= {1'b1,dbyte,1'b0}; // 8 bits, no parity, 1 stop bit (8N1)
-  else if (counter_zero)
-    txBuffer <= {1'b1,txBuffer[9:1]};
+if (rst)             txd_cnt <= 0;
+else begin
+  if (str_transfer)  txd_cnt <= TW;
+  else if (txd_ena)  txd_cnt <= txd_cnt - 1;
 end
 
-//
-// Control FSM for sending 32 bit words...
-//
-localparam [1:0] IDLE = 0, SEND = 1, POLL = 2;
-reg [1:0] state;
-
-always @ (posedge clk, posedge rst) 
-if (rst) begin
-  busy                   <= 1'b0;
-  paused                 <= 1'b0;
-  state                  <= IDLE;
-  sampled_wrdata         <= 32'h0;
-  sampled_disabledGroups <= 4'h0;
-  bytesel                <= 3'h0;
-end else begin
-  busy                   <= (state != IDLE) || write || paused;
-  paused                 <= xoff | (paused & !xon);;
-  case(state) // when write is '1', data will be available with next cycle
-    IDLE : 
-      begin
-        sampled_wrdata <= wrdata;
-        sampled_disabledGroups <= disabledGroups;
-        bytesel <= 2'h0;
-        if (write) 
-          state <= SEND;
-        else if (id)  // send our signature/ID code (in response to the query command)
-	  begin
-            sampled_wrdata <= 32'h534c4131; // "SLA1"
-            sampled_disabledGroups <= 4'b0000;
-            state <= SEND;
-          end
-      end
-    SEND : 
-      begin
-	bytesel <= bytesel+1'b1;
-        state <= POLL;
-      end
-    POLL :
-      begin
-	if (byteDone && !paused)
-          state <= (bytesel[2]) ? IDLE : SEND;
-      end
-  endcase
+// shift status
+always @ (posedge clk, posedge rst)
+if (rst)             txd_run <= 1'b0;
+else begin
+  if (str_transfer)  txd_run <= 1'b1;
+  else if (txd_ena)  txd_run <= txd_cnt != 4'd0;
 end
 
-assign writeByte = (state == SEND);
+// data shift register
+always @ (posedge clk)
+if (str_transfer)  txd_dat <= str_tdata;
+else if (txd_ena)  txd_dat <= {1'b1, txd_dat[DW-1:1]};
+
+generate if (PT!="NONE") begin
+
+// parity register
+always @ (posedge clk)
+if (str_transfer)  txd_prt <= (PT!="EVEN");
+else if (txd_ena)  txd_prt <= txd_prt ^ txd_dat[0];
+
+// output register
+always @ (posedge clk, posedge rst)
+if (rst)             uart_txd <= 1'b1;
+else begin
+  if (str_transfer)  uart_txd <= 1'b0;
+  else if (txd_ena)  uart_txd <= (txd_cnt==SW+1) ? txd_prt : txd_dat[0];
+end
+
+end else begin
+
+// output register
+always @ (posedge clk, posedge rst)
+if (rst)             uart_txd <= 1'b1;
+else begin
+  if (str_transfer)  uart_txd <= 1'b0;
+  else if (txd_ena)  uart_txd <= txd_dat[0];
+end
+
+end endgenerate
 
 endmodule

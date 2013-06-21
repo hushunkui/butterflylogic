@@ -26,7 +26,7 @@ module str_src #(
   // bus signals
   input  logic          tvalid,
   output logic          tready,
-  input  logic [DW-1:0] tvalue
+  input  logic [DW-1:0] tdata
 );
 
 // transfer
@@ -34,7 +34,7 @@ task trn (input [VW-1:0] value,
 );
 begin
   // put value on the bus
-  tvalue <= value;
+  tdata <= value;
   // perform transfer cycle
   tvalid <= 1'b1;
   while (~tready) @ (posedge clk);
@@ -54,7 +54,7 @@ module str_drn #(
   // bus signals
   input  logic          tvalid,
   output logic          tready,
-  input  logic [VW-1:0] tvalue
+  input  logic [VW-1:0] tdata
 );
 
 // transfer
@@ -65,7 +65,7 @@ begin
   while (~tvalid) @ (posedge clk);
   tready <= 1'b0;
   // pick value from the bus
-  value <= tvalue;
+  value <= tdata;
 end
 endtask: trn
 

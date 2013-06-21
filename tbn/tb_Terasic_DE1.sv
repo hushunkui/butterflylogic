@@ -37,10 +37,6 @@ logic [31:0] extData_reg;
 
 assign extData = extData_reg;
 
-`ifdef MODELSIM
-glbl glbl ();
-`endif
-
 Terasic_DE1 #(
   .FREQ (FREQ),
   .BAUD (BAUD)

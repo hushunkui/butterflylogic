@@ -1,8 +1,11 @@
-//--------------------------------------------------------------------------------
-// receiver.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2006 Michael Poppitz
+// UART receiver
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
 // 
+//////////////////////////////////////////////////////////////////////////////
+//
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation; either version 2 of the License, or (at
@@ -17,150 +20,136 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
-//
-// Receives commands from the serial port. The first byte is the commands
-// opcode, the following (optional) four byte are the command data.
-// Commands that do not have the highest bit in their opcode set are
-// considered short commands without data (1 byte long). All other commands are
-// long commands which are 5 bytes long.
-//
-// After a full command has been received it will be kept available for 10 cycles
-// on the op and data outputs. A valid command can be detected by checking if the
-// execute output is set. After 10 cycles the registers will be cleared
-// automatically and the receiver waits for new data from the serial port.
-//
-//--------------------------------------------------------------------------------
-
-`timescale 1ns/100ps
+//////////////////////////////////////////////////////////////////////////////
 
 module uart_rx #(
-  parameter integer FREQ = 50_000_000,
-  parameter integer BAUD = 921_600,
-  parameter integer BITLENGTH = FREQ / BAUD, // 54
-  parameter integer CW = $clog2(BITLENGTH) // counter width
+  parameter DW = 8,          // data width (size of data byte)
+  parameter PT = "NONE",     // parity type "EVEN", "ODD", "NONE"
+  parameter SW = 1,          // stop width (number of stop bits)
+  parameter BN = 2,          // time period number (number of clock periods per bit)
+  parameter BL = $clog2(BN)  // time period log(number) (size of boudrate generator counter)
 )(
   // system signals
-  input  wire        clk,
-  input  wire        rst,
-  //
-  output wire  [7:0] op,
-  output wire [31:0] data,
-  output reg         execute,
-  // UART signals
-  input  wire        uart_rx
+  input  wire          clk,  // clock
+  input  wire          rst,  // reset (asynchronous)
+  // data stream
+  output wire          str_tvalid,
+  output wire [DW-1:0] str_tdata ,
+  input  wire          str_tready,
+  // UART
+  input  wire          uart_rxd
 );
 
-localparam [2:0]
-  INIT      = 3'h0,
-  WAITSTOP  = 3'h1,
-  WAITSTART = 3'h2,
-  WAITBEGIN = 3'h3,
-  READBYTE  = 3'h4,
-  ANALYZE   = 3'h5,
-  READY     = 3'h6;
+// UART transfer width (length)
+localparam TW = DW + (PT!="NONE") + SW;
 
-reg  [9:0] counter;  // clock prescaling counter
-reg  [3:0] bitcount;  // count rxed bits of current byte
-reg  [2:0] bytecount;  // count rxed bytes of current command
-reg  [2:0] state;  // receiver state
-reg  [7:0] opcode;  // opcode byte
-reg [31:0] databuf;  // data dword
+// stream signals
+wire          str_transfer;
 
-assign op = opcode;
-assign data = databuf;
+// baudrate signals
+reg  [BL-1:0] rxd_bdr;
+reg           rxd_ena;
 
-always @(posedge clk, posedge rst) 
-if (rst) begin
-  state     <= INIT;
-  counter   <= 0;
-  bitcount  <= 0;
-  bytecount <= 0;
-  databuf   <= 0;
-  opcode    <= 0;
-  execute   <= 0;
-end else begin
-  case(state)
-    INIT : 
-      begin
-        counter   <= 0;
-        bitcount  <= 0;
-	bytecount <= 0;
-	opcode    <= 0;
-        databuf   <= 0;
-	state     <= WAITSTOP; 
-      end
+// UART signals
+reg           rxd_run;  // transfer run status
+reg     [3:0] rxd_cnt;  // transfer length counter
+reg  [DW-1:0] rxd_dat;  // data shift register
+reg           rxd_prt;  // parity register
 
-    WAITSTOP : // reset uart
-      begin
-	if (uart_rx) state <= WAITSTART; 
-      end
+wire          rxd_start, rxd_end;
+ 
+// receiver status
+reg           status_rdy;  // receive data ready
+reg           status_err;  // receive data error
+reg           status_prt;  // receive data parity error
+reg  [DW-1:0] status_dat;  // receive data register
 
-    WAITSTART : // wait for start bit
-      begin
-	if (!uart_rx) state <= WAITBEGIN; 
-      end
+//////////////////////////////////////////////////////////////////////////////
+// stream logic
+//////////////////////////////////////////////////////////////////////////////
 
-    WAITBEGIN : // wait for first half of start bit
-      begin
-	if (counter == (BITLENGTH / 2)) 
-	  begin
-	    counter <= 0;
-	    state <= READBYTE;
-	  end
-	else 
-	  counter <= counter + 1;
-      end
+assign str_transfer = str_tvalid & str_tready;
+assign str_tvalid   = ~status_rdy;
 
-    READBYTE : // receive byte
-      begin
-	if (counter == BITLENGTH) 
-	  begin
-	    counter <= 0;
-	    bitcount <= bitcount + 1;
-	    if (bitcount == 4'h8) 
-	      begin
-		bytecount <= bytecount + 1;
-		state <= ANALYZE;
-	      end
-	    else if (bytecount == 0) 
-	      begin
-		opcode <= {uart_rx,opcode[7:1]};
-		databuf <= databuf;
-	      end
-	    else 
-	      begin
-		opcode <= opcode;
-		databuf <= {uart_rx,databuf[31:1]};
-	      end
-	  end
-	else
-	  counter <= counter + 1;
-      end
+//////////////////////////////////////////////////////////////////////////////
+// UART receiver
+//////////////////////////////////////////////////////////////////////////////
 
-    ANALYZE : // check if long or short command has been fully received
-      begin
-	counter <= 0;
-	bitcount <= 0;
-        if (bytecount == 3'h5) // long command when 5 bytes have been received
-	  state <= READY;
-        else if (!opcode[7]) // short command when set flag not set
-          state <= READY;
-        else state <= WAITSTOP; // otherwise continue receiving
-    end
+reg uart_rxd_dly;
 
-    READY : // done, give 10 cycles for processing
-      begin
-	counter <= counter + 1;
-	if (counter == 4'd10)
-	  state <= INIT;
-	else state <= state;
-      end
-    endcase
+// delay uart_rxd and detect a start negative edge
+always @ (posedge clk)
+uart_rxd_dly <= uart_rxd;
 
-  execute <= (state == READY);
+assign rxd_start = uart_rxd_dly & ~uart_rxd & ~rxd_run;
+
+// baudrate generator from clock (it counts down to 0 generating a baud pulse)
+always @ (posedge clk, posedge rst)
+if (rst)          rxd_bdr <= BN-1;
+else begin
+  if (rxd_start)  rxd_bdr <= ((BN-1)>>1)-1;
+  else            rxd_bdr <= ~|rxd_bdr ? BN-1 : rxd_bdr - rxd_run;
+end
+
+// enable signal for shifting logic
+always @ (posedge clk, posedge rst)
+if (rst)  rxd_ena <= 1'b0;
+else      rxd_ena <= (rxd_bdr == 'd1);
+
+// bit counter
+always @ (posedge clk, posedge rst)
+if (rst)             rxd_cnt <= 0;
+else begin
+  if (rxd_start)     rxd_cnt <= TW;
+  else if (rxd_ena)  rxd_cnt <= rxd_cnt - 1;
+end
+
+// shift status
+always @ (posedge clk, posedge rst)
+if (rst)             rxd_run <= 1'b0;
+else begin
+  if (rxd_start)     rxd_run <= 1'b1;
+  else if (rxd_ena)  rxd_run <= rxd_cnt != 4'd0;
+end
+
+assign rxd_end = ~|rxd_cnt & rxd_ena;
+
+// data shift register
+always @ (posedge clk)
+  if ((PT!="NONE") ? ~(txd_cnt==SW) & rxd_ena : rxd_ena)
+    rxd_dat <= {uart_rxd, rxd_dat[DW-1:1]};
+
+// receiving stream read data
+always @ (posedge clk)
+  if (rxd_end)  status_dat <= rxd_dat;
+
+generate if (PT!="NONE") begin
+
+// parity register
+always @ (posedge clk)
+  if (rxd_start)     rxd_prt <= (PT!="EVEN");
+  else if (rxd_ena)  rxd_prt <= rxd_prt ^ uart_rxd;
+
+// receiving stream parity error
+always @ (posedge clk)
+  if (rxd_end)  status_prt <= rxd_prt;
+
+end endgenerate
+
+// fifo interrupt status
+always @ (posedge clk, posedge rst)
+if (rst)                 status_rdy <= 1'b0;
+else begin
+  if (rxd_end)           status_rdy <= 1'b1;
+  else if (str_transfer) status_rdy <= 1'b0;
+end
+
+// fifo overflow error
+always @ (posedge clk, posedge rst)
+if (rst)                 status_err <= 1'b0;
+else begin
+  if (str_transfer)      status_err <= 1'b0;
+  else if (rxd_end)      status_err <= status_rdy;
 end
 
 endmodule

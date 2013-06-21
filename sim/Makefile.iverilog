@@ -17,8 +17,7 @@ RTL_SPI = ../rtl/spi_receiver.v    \
           ../rtl/spi_slave.v       \
           ../rtl/spi_transmitter.v
 RTL_UART= ../rtl/uart_rx.v         \
-          ../rtl/uart_tx.v         \
-          ../rtl/uart.v
+          ../rtl/uart_tx.v
 RTL     = ../rtl/cdc.v             \
           ../rtl/controller.v      \
           ../rtl/core.v            \
@@ -65,6 +64,10 @@ rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v -o rle.out
 	vvp -n -l rle.log rle.out
 
+Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX)
+	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX) -o full.out
+	vvp -n -l full.log full.out
+
 uart_txd.fifo:
 	touch uart_txd.fifo
 
@@ -73,9 +76,9 @@ uart_rxd.fifo:
 
 pipe: uart_txd.fifo uart_rxd.fifo
 
-Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX)
-	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX) -o full.out
-	vvp -n -l full.log full.out
+uart: ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART)
+	iverilog $(OPT) ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART) -o uart.out
+	vvp -n -l uart.log uart.out
 
 Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) pipe
 	iverilog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) -o full.out
