@@ -36,15 +36,20 @@ int unsigned   error = 0;
 // test sequence
 ////////////////////////////////////////////////////////////////////////////////
 
-//
-// Generate test sequence...
-//
 initial
 begin
   repeat (10) @(posedge clk);
   rst = 0;
   repeat (10) @(posedge clk);
-  uart.transmit (8'ha5);
+
+  fork
+  begin
+    uart.transmit (8'ha5);
+  end
+  begin
+    str_txd.trn (8'ha5);
+  end
+  join
 
   // report test status
   if (error)  $display ("FAILURE: there were %d errors during simulation.", error);

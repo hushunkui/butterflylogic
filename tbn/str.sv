@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module str_src #(
-  parameter int VW = 32  // value width
+  parameter int VW = 32  // data width
 )(
   // system signals
   input  logic          clk, 
@@ -13,11 +13,11 @@ module str_src #(
 );
 
 // transfer
-task trn (input [VW-1:0] value);
+task trn (input [VW-1:0] data);
 begin
-  // put value on the bus
+  // put data on the bus
   tvalid = 1'b1;
-  tdata = value;
+  tdata = data;
   // perform transfer cycle
                   @ (posedge clk);
   while (~tready) @ (posedge clk);
@@ -29,7 +29,7 @@ endmodule: str_src
 
 
 module str_drn #(
-  parameter int VW = 32  // value width
+  parameter int VW = 32  // data width
 )(
   // system signals
   input  logic          clk, 
@@ -41,15 +41,15 @@ module str_drn #(
 );
 
 // transfer
-task trn (output [VW-1:0] value);
+task trn (output [VW-1:0] data);
 begin
   // perform transfer cycle
   tready = 1'b1;
                   @ (posedge clk);
   while (~tvalid) @ (posedge clk);
   tready = 1'b0;
-  // pick value from the bus
-  value = tdata;
+  // pick data from the bus
+  data = tdata;
 end
 endtask: trn
 

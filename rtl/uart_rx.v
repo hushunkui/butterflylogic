@@ -33,9 +33,12 @@ module uart_rx #(
   input  wire          clk,  // clock
   input  wire          rst,  // reset (asynchronous)
   // data stream
-  output wire          str_tvalid,
-  output wire [DW-1:0] str_tdata ,
+  output reg           str_tvalid,
+  output reg  [DW-1:0] str_tdata ,
   input  wire          str_tready,
+  // data stream error status
+  output reg           str_terror_fifo,    // fifo overflow error
+  output reg           str_terror_parity,  // receive data parity error
   // UART
   input  wire          uart_rxd
 );
@@ -58,18 +61,36 @@ reg           rxd_prt;  // parity register
 
 wire          rxd_start, rxd_end;
  
-// receiver status
-reg           status_rdy;  // receive data ready
-reg           status_err;  // receive data error
-reg           status_prt;  // receive data parity error
-reg  [DW-1:0] status_dat;  // receive data register
-
 //////////////////////////////////////////////////////////////////////////////
 // stream logic
 //////////////////////////////////////////////////////////////////////////////
 
 assign str_transfer = str_tvalid & str_tready;
-assign str_tvalid   = ~status_rdy;
+
+// received data
+always @ (posedge clk)
+if (rxd_end)  str_tdata <= rxd_dat;
+
+// received data valid
+always @ (posedge clk, posedge rst)
+if (rst)                 str_tvalid <= 1'b0;
+else begin
+  if (rxd_end)           str_tvalid <= 1'b1;
+  else if (str_transfer) str_tvalid <= 1'b0;
+end
+
+// fifo overflow error
+always @ (posedge clk, posedge rst)
+if (rst)                 str_terror_fifo <= 1'b0;
+else begin
+  if (str_transfer)      str_terror_fifo <= 1'b0;
+  else if (rxd_end)      str_terror_fifo <= str_tvalid;
+end
+
+// receiving stream parity error
+always @ (posedge clk, posedge rst)
+if (rst)                 str_terror_parity <= 1'b0;
+else if (rxd_end)        str_terror_parity <= rxd_prt;
 
 //////////////////////////////////////////////////////////////////////////////
 // UART receiver
@@ -116,40 +137,24 @@ assign rxd_end = ~|rxd_cnt & rxd_ena;
 
 // data shift register
 always @ (posedge clk)
-  if ((PT!="NONE") ? ~(txd_cnt==SW) & rxd_ena : rxd_ena)
-    rxd_dat <= {uart_rxd, rxd_dat[DW-1:1]};
+if ((PT!="NONE") ? ~(txd_cnt==SW) & rxd_ena : rxd_ena)
+  rxd_dat <= {uart_rxd, rxd_dat[DW-1:1]};
 
-// receiving stream read data
-always @ (posedge clk)
-  if (rxd_end)  status_dat <= rxd_dat;
-
-generate if (PT!="NONE") begin
+generate
+if (PT!="NONE") begin: parity
 
 // parity register
 always @ (posedge clk)
-  if (rxd_start)     rxd_prt <= (PT!="EVEN");
-  else if (rxd_ena)  rxd_prt <= rxd_prt ^ uart_rxd;
+if (rxd_start)     rxd_prt <= (PT!="EVEN");
+else if (rxd_ena)  rxd_prt <= rxd_prt ^ uart_rxd;
 
-// receiving stream parity error
+end else begin
+
+// parity register
 always @ (posedge clk)
-  if (rxd_end)  status_prt <= rxd_prt;
+rxd_prt <= 0;
 
-end endgenerate
-
-// fifo interrupt status
-always @ (posedge clk, posedge rst)
-if (rst)                 status_rdy <= 1'b0;
-else begin
-  if (rxd_end)           status_rdy <= 1'b1;
-  else if (str_transfer) status_rdy <= 1'b0;
 end
-
-// fifo overflow error
-always @ (posedge clk, posedge rst)
-if (rst)                 status_err <= 1'b0;
-else begin
-  if (str_transfer)      status_err <= 1'b0;
-  else if (rxd_end)      status_err <= status_rdy;
-end
+endgenerate
 
 endmodule
