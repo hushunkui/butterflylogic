@@ -80,16 +80,15 @@ wire [31:0] sti_data_n;
 wire extClock_mode;
 wire extTestMode;
 
-wire [39:0] cmd;
 wire [31:0] sram_wrdata;
 wire [31:0] sram_rddata; 
 wire  [3:0] sram_rdvalid;
 wire [31:0] stableInput;
 
-wire  [7:0] opcode;
-wire [31:0] config_data; 
-
-assign {config_data,opcode} = cmd;
+wire        cmd_exe;
+wire        cmd_flags;
+wire  [7:0] cmd_code;
+wire [31:0] cmd_data; 
 
 //--------------------------------------------------------------------------------
 // clocking
@@ -244,10 +243,11 @@ spi_slave spi_slave (
   .send       (send), 
   .send_data  (sram_rddata), 
   .send_valid (sram_rdvalid),
-  // output configuration
-  .cmd        (cmd),
-  .execute    (execute), 
   .busy       (busy),
+  // output configuration
+  .cmd_code   (cmd_code),
+  .cmd_data   (cmd_data),
+  .cmd_exe    (cmd_exe),
   // SPI signals
   .spi_sclk   (spi_sclk), 
   .spi_cs_n   (spi_cs_n),
@@ -270,18 +270,18 @@ core #(
   .sti_clk         (sti_clk_p),
   .sti_data_p      (sti_data_p),
   .sti_data_n      (sti_data_n),
-  //
   .extTriggerIn    (extTriggerIn),
-  .opcode          (opcode),
-  .config_data     (config_data),
-  .execute         (execute),
-  .outputBusy      (busy),
+  //
+  .cmd_code        (cmd_code),
+  .cmd_data        (cmd_data),
+  .cmd_exe         (cmd_exe),
+  .cmd_flags       (cmd_flags),
   // outputs...
+  .outputBusy      (busy),
   .sampleReady50   (),
   .stableInput     (stableInput),
   .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
-  .wrFlags         (wrFlags),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
   .indicator_arm   (armLEDnn),
@@ -301,8 +301,8 @@ sram_interface sram_interface (
   .clk          (sys_clk),
   .rst          (sys_rst),
   // configuration/control signals
-  .wrFlags      (wrFlags), 
-  .config_data  (config_data[5:2]),
+  .cmd_flags    (cmd_flags), 
+  .cmd_data     (cmd_data[5:2]),
   // write interface
   .write        (write),
   .lastwrite    (lastwrite),

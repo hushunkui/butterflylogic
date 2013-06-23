@@ -22,14 +22,14 @@
 // Details: http://www.sump.org/projects/analyzer/
 //
 // Receives commands from the SPI interface. The first byte is the commands
-// opcode, the following (optional) four byte are the command data.
-// Commands that do not have the highest bit in their opcode set are
+// cmd_code, the following (optional) four byte are the command data.
+// Commands that do not have the highest bit in their cmd_code set are
 // considered short commands without data (1 byte long). All other commands are
 // long commands which are 5 bytes long.
 //
 // After a full command has been received it will be kept available for 10 cycles
 // on the op and data outputs. A valid command can be detected by checking if the
-// execute output is set. After 10 cycles the registers will be cleared
+// cmd_exe output is set. After 10 cycles the registers will be cleared
 // automatically and the receiver waits for new data from the serial port.
 //
 //--------------------------------------------------------------------------------
@@ -49,9 +49,10 @@ module spi_receiver (
   input  wire        spi_cs_n,
   //
   input  wire        transmitting,
-  output reg   [7:0] opcode,
-  output reg  [31:0] opdata,
-  output reg         execute
+  //
+  output reg   [7:0] cmd_code,
+  output reg  [31:0] cmd_data,
+  output reg         cmd_exe
 );
 
 localparam READOPCODE = 1'h0;
@@ -59,9 +60,9 @@ localparam READLONG   = 1'h1;
 
 reg state, next_state;			// receiver state
 reg [1:0] bytecount, next_bytecount;	// count rxed bytes of current command
-reg [7:0] next_opcode;		// opcode byte
-reg [31:0] next_opdata;	// data dword
-reg next_execute;
+reg [7:0] next_cmd_code;		// cmd_code byte
+reg [31:0] next_cmd_data;	// data dword
+reg next_cmd_exe;
 
 reg [2:0] bitcount, next_bitcount;	// count rxed bits of current byte
 reg [7:0] spiByte, next_spiByte;
@@ -122,23 +123,23 @@ always @(posedge clk, posedge rst)
 if (rst)  state <= READOPCODE;
 else      state <= next_state;
 
-initial opcode = 0;
-initial opdata = 0;
+initial cmd_code = 0;
+initial cmd_data = 0;
 always @(posedge clk) 
 begin
   bytecount <= next_bytecount;
-  opcode    <= next_opcode;
-  opdata    <= next_opdata;
-  execute   <= next_execute;
+  cmd_code    <= next_cmd_code;
+  cmd_data    <= next_cmd_data;
+  cmd_exe   <= next_cmd_exe;
 end
 
 always @*
 begin
   next_state = state;
   next_bytecount = bytecount;
-  next_opcode = opcode;
-  next_opdata = opdata;
-  next_execute = 1'b0;
+  next_cmd_code = cmd_code;
+  next_cmd_data = cmd_data;
+  next_cmd_exe = 1'b0;
 
   case (state)
     READOPCODE : // receive byte
@@ -146,12 +147,12 @@ begin
 	next_bytecount = 0;
 	if (byteready)
 	  begin
-	    next_opcode = spiByte;
+	    next_cmd_code = spiByte;
 	    if (spiByte[7])
 	      next_state = READLONG;
 	    else // short command
 	      begin
-		next_execute = 1'b1;
+		next_cmd_exe = 1'b1;
 	  	next_state = READOPCODE;
 	      end
 	  end
@@ -162,10 +163,10 @@ begin
 	if (byteready)
 	  begin
 	    next_bytecount = bytecount + 1'b1;
-	    next_opdata = {spiByte,opdata[31:8]};
-	    if (&bytecount) // execute long command
+	    next_cmd_data = {spiByte,cmd_data[31:8]};
+	    if (&bytecount) // cmd_exe long command
 	      begin
-		next_execute = 1'b1;
+		next_cmd_exe = 1'b1;
 	  	next_state = READOPCODE;
 	      end
 	  end

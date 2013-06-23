@@ -44,8 +44,8 @@ module sram_interface #(
   input  wire           clk,
   input  wire           rst,
   // configuration/control signals
-  input  wire           wrFlags,
-  input  wire     [3:0] config_data,
+  input  wire           cmd_flags,
+  input  wire     [3:0] cmd_data,
   // write interface
   input  wire           write,
   input  wire           lastwrite,
@@ -113,11 +113,11 @@ begin
   //   If any two groups are selected, 12k samples are possible.
   //   If three or four groups are selected, only 6k samples are possible.
   //
-  if (wrFlags)
+  if (cmd_flags)
     begin
       next_init = 1'b1;
       next_mode = 0; // 32 bit wide, 6k deep  +  24 bit wide, 6k deep
-      case (config_data)
+      case (cmd_data)
         4'b1100, 4'b0011, 4'b0110, 4'b1001, 4'b1010, 4'b0101 : next_mode = 2'b10; // 16 bit wide, 12k deep
         4'b1110, 4'b1101, 4'b1011, 4'b0111 : next_mode = 2'b01; // 8 bit wide, 24k deep
       endcase
@@ -127,7 +127,7 @@ begin
       // tweak things a bit.  Since data is aligned (see data_align.v), all we need 
       // do is ignore the MSB here...
       next_validmask = 4'hF;
-      case (config_data)
+      case (cmd_data)
         4'b0001, 4'b0010, 4'b0100, 4'b1000 : next_validmask = 4'h7;
       endcase
     end

@@ -43,16 +43,16 @@ module core #(
   input  wire           sys_clk,
   input  wire           sys_rst,     // External reset
   // configuration/control inputs
-  input  wire     [7:0] opcode,       // Configuration command from serial/SPI interface
-  input  wire    [31:0] config_data,
-  input  wire           execute,      // opcode & config_data valid
+  input  wire     [7:0] cmd_code,       // Configuration command from serial/SPI interface
+  input  wire    [31:0] cmd_data,
+  input  wire           cmd_exe,      // cmd_code & cmd_data valid
   // configuration/control outputs
   input  wire           outputBusy,
   input  wire           extTriggerIn,
   output wire           sampleReady50,
   output wire           outputSend,
   output wire           extTriggerOut,
-  output wire           wrFlags,
+  output wire           cmd_flags,
   output wire           extClock_mode,
   output wire           extTestMode,
   output reg            indicator_arm,
@@ -163,15 +163,15 @@ end
 //
 decoder decoder(
   .clock        (sys_clk),
-  .execute      (execute),
-  .opcode       (opcode),
+  .execute      (cmd_exe),
+  .opcode       (cmd_code),
   // outputs...
   .wrtrigmask   (wrtrigmask),
   .wrtrigval    (wrtrigval),
   .wrtrigcfg    (wrtrigcfg),
   .wrspeed      (wrDivider),
   .wrsize       (wrsize),
-  .wrFlags      (wrFlags),
+  .wrFlags      (cmd_flags),
   .wrTrigSelect (wrTrigSelect),
   .wrTrigChain  (wrTrigChain),
   .finish_now   (finish_now),
@@ -184,9 +184,12 @@ decoder decoder(
 // Configuration flags register...
 //
 flags flags(
-  .clock       (sys_clk),
-  .wrFlags     (wrFlags),
-  .config_data (config_data),
+  .clk         (sys_clk),
+  .rst         (sys_rst),
+  //
+  .cmd_flags   (cmd_flags),
+  .cmd_data    (cmd_data),
+  //
   .finish_now  (finish_now),
   // outputs...
   .flags_reg   (flags_reg)
@@ -251,7 +254,7 @@ sampler #(
   // sonfiguraation/control signals
   .extClock_mode (extClock_mode),
   .wrDivider     (wrDivider),
-  .config_data   (config_data[23:0]),
+  .config_data   (cmd_data[23:0]),
   // input stream
   .sti_valid     (cdc_valid),
   .sti_data      (cdc_data ),
@@ -275,7 +278,7 @@ trigger #(
   .wrMask       (wrtrigmask),
   .wrValue      (wrtrigval),
   .wrConfig     (wrtrigcfg),
-  .config_data  (config_data),
+  .config_data  (cmd_data),
   .arm          (arm_basic),
   .demux_mode   (demux_mode),
   // input stream
@@ -298,7 +301,7 @@ trigger_adv #(
   // configuraation/control signals
   .wrSelect      (wrTrigSelect),
   .wrChain       (wrTrigChain),
-  .config_data   (config_data),
+  .config_data   (cmd_data),
   .arm           (arm_adv),
   .finish_now    (finish_now),
   // input stream
@@ -396,7 +399,7 @@ controller controller(
   .reset           (reset_core),
   .run             (dly_run),
   .wrSize          (wrsize),
-  .config_data     (config_data),
+  .config_data     (cmd_data),
   .arm             (dly_arm),
   .busy            (outputBusy),
   // input stream

@@ -34,14 +34,16 @@ module spi_slave (
   // system signals
   input  wire        clk,
   input  wire        rst,
-  //
+  // stream signals
   input  wire        send,
   input  wire [31:0] send_data,
   input  wire  [3:0] send_valid,
   input  wire [31:0] dataIn,
-  output wire [39:0] cmd,
-  output wire        execute,
   output wire        busy,
+  // command signals
+  output wire  [7:0] cmd_code,
+  output wire [31:0] cmd_data,
+  output wire        cmd_exe,
   // SPI signals
   input  wire        spi_cs_n,
   input  wire        spi_sclk,
@@ -60,21 +62,13 @@ module spi_slave (
 // always @ (posedge spi_sclk)
 // spi_byte <= {spi_byte[6:0], spi_mosi};
 
-
-
-
 //
 // Registers...
 //
 reg query_id; 
 reg query_metadata;
 reg query_dataIn; 
-reg dly_execute; 
-
-wire [7:0] opcode;
-wire [31:0] opdata;
-assign cmd = {opdata,opcode};
-
+reg dly_cmd_exe; 
 
 //
 // Synchronize inputs...
@@ -110,9 +104,10 @@ spi_receiver spi_receiver(
   .spi_cs_n     (sync_cs_n),
   //
   .transmitting (busy),
-  .opcode       (opcode),
-  .opdata       (opdata),
-  .execute      (execute)
+  //
+  .cmd_code     (cmd_code),
+  .cmd_data     (cmd_data),
+  .cmd_exe      (cmd_exe)
 );
 
 spi_transmitter spi_transmitter(
@@ -141,11 +136,11 @@ spi_transmitter spi_transmitter(
 //
 always @(posedge clk) 
 begin
-  dly_execute    <= execute;
-  if (!dly_execute && execute) begin
-    query_id       <= (opcode == 8'h02);
-    query_metadata <= (opcode == 8'h04); 
-    query_dataIn   <= (opcode == 8'h06);
+  dly_cmd_exe    <= cmd_exe;
+  if (!dly_cmd_exe && cmd_exe) begin
+    query_id       <= (cmd_code == 8'h02);
+    query_metadata <= (cmd_code == 8'h04); 
+    query_dataIn   <= (cmd_code == 8'h06);
   end else begin
     query_id       <= 1'b0; 
     query_metadata <= 1'b0;

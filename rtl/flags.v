@@ -31,10 +31,15 @@
 `timescale 1ns/100ps
 
 module flags (
-  input  wire        clock,
-  input  wire        wrFlags,
-  input  wire [31:0] config_data,
+  // system signals
+  input  wire        clk,
+  input  wire        rst,
+  // comand signals
+  input  wire        cmd_flags,
+  input  wire [31:0] cmd_data,
+  // 
   input  wire        finish_now,
+  // flag outputs
   output reg  [31:0] flags_reg
 );
 
@@ -44,12 +49,13 @@ reg [31:0] next_flags_reg;
 // Write flags register...
 //
 initial flags_reg = 0;
-always @(posedge clock) 
-flags_reg <= next_flags_reg;
+always @(posedge clk, posedge rst)
+if (rst) flags_reg <= 0;
+else     flags_reg <= next_flags_reg;
 
 always @*
 begin
-  next_flags_reg = (wrFlags) ? config_data : flags_reg;
+  next_flags_reg = (cmd_flags) ? cmd_data : flags_reg;
   if (finish_now) next_flags_reg[8] = 1'b0;
 end
 endmodule
