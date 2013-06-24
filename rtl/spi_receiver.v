@@ -107,7 +107,8 @@ begin
       next_bitcount = bitcount + 1'b1;
       next_byteready = &bitcount;
       next_spiByte = {spiByte[6:0],sampled_mosi};
-   end
+    end
+  end
 end
 
 
@@ -144,12 +145,12 @@ begin
       next_bytecount = 0;
       if (byteready) begin
         next_cmd_code = spiByte;
-        if (spiByte[7])
+        if (spiByte[7]) begin
           next_state = READLONG;
-        else begin // short command
+        end else begin // short command
           next_cmd_valid = 1'b1;
           next_state = READOPCODE;
-       end
+        end
       end
     end
 
@@ -159,7 +160,6 @@ begin
         next_bytecount = bytecount + 1'b1;
         next_cmd_data = {spiByte,cmd_data[31:8]};
         if (&bytecount) begin // cmd_valid long command
-        begin
           next_cmd_valid = 1'b1;
           next_state = READOPCODE;
         end
