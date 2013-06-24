@@ -35,7 +35,7 @@ module flags (
   input  wire        clk,
   input  wire        rst,
   // comand signals
-  input  wire        cmd_flags,
+  input  wire        cmd_valid,
   input  wire [31:0] cmd_data,
   // 
   input  wire        finish_now,
@@ -55,7 +55,7 @@ else     flags_reg <= next_flags_reg;
 
 always @*
 begin
-  next_flags_reg = (cmd_flags) ? cmd_data : flags_reg;
+  next_flags_reg = (cmd_valid) ? cmd_data : flags_reg;
   if (finish_now) next_flags_reg[8] = 1'b0;
 end
 endmodule

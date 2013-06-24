@@ -45,14 +45,14 @@ module core #(
   // configuration/control inputs
   input  wire     [7:0] cmd_code,       // Configuration command from serial/SPI interface
   input  wire    [31:0] cmd_data,
-  input  wire           cmd_exe,      // cmd_code & cmd_data valid
+  input  wire           cmd_valid,      // cmd_code & cmd_data valid
+  output wire           cmd_valid_flags,
   // configuration/control outputs
   input  wire           outputBusy,
   input  wire           extTriggerIn,
   output wire           sampleReady50,
   output wire           outputSend,
   output wire           extTriggerOut,
-  output wire           cmd_flags,
   output wire           extClock_mode,
   output wire           extTestMode,
   output reg            indicator_arm,
@@ -166,7 +166,7 @@ decoder decoder (
   .clk          (clk),
   .rst          (rst),
   // command
-  .cmd_valid    (cmd_exe),
+  .cmd_valid    (cmd_valid),
   .cmd_code     (cmd_code),
   // outputs...
   .wrtrigmask   (wrtrigmask),
@@ -174,7 +174,7 @@ decoder decoder (
   .wrtrigcfg    (wrtrigcfg),
   .wrspeed      (wrDivider),
   .wrsize       (wrsize),
-  .wrFlags      (cmd_flags),
+  .wrFlags      (cmd_valid_flags),
   .wrTrigSelect (wrTrigSelect),
   .wrTrigChain  (wrTrigChain),
   .finish_now   (finish_now),
@@ -190,7 +190,7 @@ flags flags (
   .clk         (clk),
   .rst         (rst),
   //
-  .cmd_flags   (cmd_flags),
+  .cmd_valid   (cmd_valid_flags),
   .cmd_data    (cmd_data),
   //
   .finish_now  (finish_now),
@@ -282,6 +282,7 @@ trigger #(
   .wrValue      (wrtrigval),
   .wrConfig     (wrtrigcfg),
   .config_data  (cmd_data),
+  //
   .arm          (arm_basic),
   .demux_mode   (demux_mode),
   // input stream
@@ -305,6 +306,7 @@ trigger_adv #(
   .wrSelect      (wrTrigSelect),
   .wrChain       (wrTrigChain),
   .config_data   (cmd_data),
+  //
   .arm           (arm_adv),
   .finish_now    (finish_now),
   // input stream

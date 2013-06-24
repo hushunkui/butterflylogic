@@ -147,9 +147,9 @@ module ctrl #(
   .mem_tdata   (),
   .mem_tready  (),
   // control stream
-  .ctl_code   (),
-  .ctl_data   (),
-  .ctl_valid  (),
+  .cmd_code   (cmd_code ),
+  .cmd_data   (cmd_data ),
+  .cmd_valid  (cmd_valid),
   // RXD data stream
   .str_rxd_tvalid  (),
   .str_rxd_tdata   (),
@@ -172,10 +172,10 @@ core #(
   .sti_data_p      (sti_data),
   .sti_data_n      (sti_data),
   //
-  .ctl_code        (ctl_code),
-  .ctl_data        (ctl_data),
-  .ctl_exe         (ctl_exe),
-  .wrFlags         (wrFlags),
+  .cmd_code        (cmd_code),
+  .cmd_data        (cmd_data),
+  .cmd_valid       (cmd_valid),
+  .cmd_valid_flags (cmd_valid_flags),
   // outputs...
   .extTriggerIn    (extTriggerIn),
   .sampleReady50   (),
@@ -200,8 +200,8 @@ sram_interface sram_interface (
   .clk          (sys_clk),
   .rst          (sys_rst),
   // configuration/control signals
-  .wrFlags      (wrFlags), 
-  .ctl_data     (ctl_data[5:2]),
+  .cmd_valid    (cmd_valid_flags), 
+  .cmd_data     (cmd_data[5:2]),
   // write interface
   .write        (write),
   .lastwrite    (lastwrite),

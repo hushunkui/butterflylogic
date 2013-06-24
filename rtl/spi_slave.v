@@ -43,7 +43,7 @@ module spi_slave (
   // command signals
   output wire  [7:0] cmd_code,
   output wire [31:0] cmd_data,
-  output wire        cmd_exe,
+  output wire        cmd_valid,
   // SPI signals
   input  wire        spi_cs_n,
   input  wire        spi_sclk,
@@ -68,7 +68,6 @@ module spi_slave (
 reg query_id; 
 reg query_metadata;
 reg query_dataIn; 
-reg dly_cmd_exe; 
 
 //
 // Synchronize inputs...
@@ -105,9 +104,9 @@ spi_receiver spi_receiver(
   //
   .transmitting (busy),
   //
-  .cmd_code     (cmd_code),
-  .cmd_data     (cmd_data),
-  .cmd_exe      (cmd_exe)
+  .cmd_code     (cmd_code ),
+  .cmd_data     (cmd_data ),
+  .cmd_valid    (cmd_valid)
 );
 
 spi_transmitter spi_transmitter(
@@ -136,8 +135,7 @@ spi_transmitter spi_transmitter(
 //
 always @(posedge clk) 
 begin
-  dly_cmd_exe    <= cmd_exe;
-  if (!dly_cmd_exe && cmd_exe) begin
+  if (cmd_valid) begin
     query_id       <= (cmd_code == 8'h02);
     query_metadata <= (cmd_code == 8'h04); 
     query_dataIn   <= (cmd_code == 8'h06);

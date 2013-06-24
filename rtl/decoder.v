@@ -59,11 +59,6 @@ module decoder (
 );
 
 //
-// Registers...
-//
-reg dly_cmd_valid;
-
-//
 // Control logic.  On rising edge of "cmd_valid" signal,
 // parse "cmd_code" and make things happen...
 //

@@ -29,7 +29,7 @@
 //
 // After a full command has been received it will be kept available for 10 cycles
 // on the op and data outputs. A valid command can be detected by checking if the
-// cmd_exe output is set. After 10 cycles the registers will be cleared
+// cmd_valid output is set. After 10 cycles the registers will be cleared
 // automatically and the receiver waits for new data from the serial port.
 //
 //--------------------------------------------------------------------------------
@@ -52,7 +52,7 @@ module spi_receiver (
   //
   output reg   [7:0] cmd_code,
   output reg  [31:0] cmd_data,
-  output reg         cmd_exe
+  output reg         cmd_valid
 );
 
 localparam READOPCODE = 1'h0;
@@ -62,7 +62,7 @@ reg state, next_state;			// receiver state
 reg [1:0] bytecount, next_bytecount;	// count rxed bytes of current command
 reg [7:0] next_cmd_code;		// cmd_code byte
 reg [31:0] next_cmd_data;	// data dword
-reg next_cmd_exe;
+reg next_cmd_valid;
 
 reg [2:0] bitcount, next_bitcount;	// count rxed bits of current byte
 reg [7:0] spiByte, next_spiByte;
@@ -99,18 +99,15 @@ begin
   if (cs_negedge)
     next_bitcount = 0;
 
-  if (sclk_posedge) // detect rising edge of sclk
-    if (spi_cs_n)
-      begin
-        next_bitcount = 0;
-        next_spiByte = 0;
-      end
-    else
-      begin
-        next_bitcount = bitcount + 1'b1;
-        next_byteready = &bitcount;
-        next_spiByte = {spiByte[6:0],sampled_mosi};
-      end
+  if (sclk_posedge) begin // detect rising edge of sclk
+    if (spi_cs_n) begin
+      next_bitcount = 0;
+      next_spiByte = 0;
+    end else begin
+      next_bitcount = bitcount + 1'b1;
+      next_byteready = &bitcount;
+      next_spiByte = {spiByte[6:0],sampled_mosi};
+   end
 end
 
 
@@ -128,49 +125,46 @@ initial cmd_data = 0;
 always @(posedge clk) 
 begin
   bytecount <= next_bytecount;
-  cmd_code    <= next_cmd_code;
-  cmd_data    <= next_cmd_data;
-  cmd_exe   <= next_cmd_exe;
+  cmd_code  <= next_cmd_code;
+  cmd_data  <= next_cmd_data;
+  cmd_valid <= next_cmd_valid;
 end
 
 always @*
 begin
   next_state = state;
   next_bytecount = bytecount;
-  next_cmd_code = cmd_code;
-  next_cmd_data = cmd_data;
-  next_cmd_exe = 1'b0;
+  next_cmd_code  = cmd_code;
+  next_cmd_data  = cmd_data;
+  next_cmd_valid = 1'b0;
 
   case (state)
     READOPCODE : // receive byte
-      begin
-	next_bytecount = 0;
-	if (byteready)
-	  begin
-	    next_cmd_code = spiByte;
-	    if (spiByte[7])
-	      next_state = READLONG;
-	    else // short command
-	      begin
-		next_cmd_exe = 1'b1;
-	  	next_state = READOPCODE;
-	      end
-	  end
+    begin
+      next_bytecount = 0;
+      if (byteready) begin
+        next_cmd_code = spiByte;
+        if (spiByte[7])
+          next_state = READLONG;
+        else begin // short command
+          next_cmd_valid = 1'b1;
+          next_state = READOPCODE;
+       end
       end
+    end
 
     READLONG : // receive 4 word parameter
-      begin
-	if (byteready)
-	  begin
-	    next_bytecount = bytecount + 1'b1;
-	    next_cmd_data = {spiByte,cmd_data[31:8]};
-	    if (&bytecount) // cmd_exe long command
-	      begin
-		next_cmd_exe = 1'b1;
-	  	next_state = READOPCODE;
-	      end
-	  end
+    begin
+      if (byteready) begin
+        next_bytecount = bytecount + 1'b1;
+        next_cmd_data = {spiByte,cmd_data[31:8]};
+        if (&bytecount) begin // cmd_valid long command
+        begin
+          next_cmd_valid = 1'b1;
+          next_state = READOPCODE;
+        end
       end
+    end
   endcase
 end
 

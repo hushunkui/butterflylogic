@@ -85,10 +85,11 @@ wire [31:0] sram_rddata;
 wire  [3:0] sram_rdvalid;
 wire [31:0] stableInput;
 
-wire        cmd_exe;
-wire        cmd_flags;
 wire  [7:0] cmd_code;
 wire [31:0] cmd_data; 
+wire        cmd_valid;
+
+wire        cmd_valid_flags;
 
 //--------------------------------------------------------------------------------
 // clocking
@@ -247,7 +248,7 @@ spi_slave spi_slave (
   // output configuration
   .cmd_code   (cmd_code),
   .cmd_data   (cmd_data),
-  .cmd_exe    (cmd_exe),
+  .cmd_valid  (cmd_valid),
   // SPI signals
   .spi_sclk   (spi_sclk), 
   .spi_cs_n   (spi_cs_n),
@@ -274,8 +275,8 @@ core #(
   //
   .cmd_code        (cmd_code),
   .cmd_data        (cmd_data),
-  .cmd_exe         (cmd_exe),
-  .cmd_flags       (cmd_flags),
+  .cmd_valid       (cmd_valid),
+  .cmd_valid_flags (cmd_valid_flags),
   // outputs...
   .outputBusy      (busy),
   .sampleReady50   (),
@@ -301,7 +302,7 @@ sram_interface sram_interface (
   .clk          (sys_clk),
   .rst          (sys_rst),
   // configuration/control signals
-  .cmd_flags    (cmd_flags), 
+  .cmd_flags    (cmd_valid_flags), 
   .cmd_data     (cmd_data[5:2]),
   // write interface
   .write        (write),
