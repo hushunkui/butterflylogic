@@ -1,8 +1,11 @@
-//--------------------------------------------------------------------------------
-// eia232.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2006 Michael Poppitz
-// 
+// UART receiver
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+//
+//////////////////////////////////////////////////////////////////////////////
+//
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation; either version 2 of the License, or (at
@@ -17,115 +20,69 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
-//
-// EIA232 aka RS232 interface.
-//
-//--------------------------------------------------------------------------------
-//
-// 12/29/2010 - Verilog Version + cleanups created by Ian Davis - mygizmos.org
-// 
-
-`timescale 1ns/100ps
+//////////////////////////////////////////////////////////////////////////////
 
 module uart #(
-  parameter integer FREQ = 50_000_000,
-  parameter integer BAUD = 921_600
+  parameter DW = 8,          // data width (size of data byte)
+  parameter PT = "NONE",     // parity type "EVEN", "ODD", "NONE"
+  parameter SW = 1,          // stop width (number of stop bits)
+  parameter BN = 2           // time period number (number of clock periods per bit)
 )(
   // system signals
-  input  wire        clk,
-  input  wire        rst,
-  // data stream
-  input  wire        send,	// Send data output serial tx
-  input  wire [31:0] wrdata,	// Data to be sent
-  //
-  output wire [39:0] cmd,
-  output wire        execute,	// Cmd is valid
-  output wire        busy,	// Indicates transmitter busy
-  // UART signals
-  input  wire        uart_rx,  // Serial RX
-  output wire        uart_tx   // Serial TX
+  input  wire          clk,  // clock
+  input  wire          rst,  // reset (asynchronous)
+  // RXD data stream
+  output wire          str_rxd_tvalid,
+  output wire [DW-1:0] str_rxd_tdata ,
+  input  wire          str_rxd_tready,
+  // TXD data stream
+  input  wire          str_txd_tvalid,
+  input  wire [DW-1:0] str_txd_tdata ,
+  output wire          str_txd_tready,
+  // data stream error status
+  output wire          error_fifo,    // fifo overflow error
+  output wire          error_parity,  // receive data parity error
+  // UART
+  input  wire          uart_rxd,
+  input  wire          uart_txd
 );
 
-reg id; 
-reg xon; 
-reg xoff; 
-reg wrFlags;
-reg dly_execute; 
-reg [3:0] disabledGroupsReg;
-
-wire [7:0] opcode;
-wire [31:0] opdata;
-assign cmd = {opdata,opcode};
-
-//
-// Process special uart commands that do not belong in core decoder...
-//
-always @(posedge clk, posedge rst) 
-if (rst) begin
-  id      <= 1'b0;
-  xon     <= 1'b0;
-  xoff    <= 1'b0;
-  wrFlags <= 1'b0;
-  disabledGroupsReg <= 4'b0000;
-end else begin
-  if (~dly_execute & execute)
-  case(opcode)
-    8'h02 : id      <= 1'b1;
-    8'h11 : xon     <= 1'b1;
-    8'h13 : xoff    <= 1'b1;
-    8'h82 : wrFlags <= 1'b1;
-  endcase
-  if (wrFlags) disabledGroupsReg <= opdata[5:2];
-end
-
-always @(posedge clk, posedge rst) 
-if (rst)  dly_execute <= 1'b0;
-else      dly_execute <= execute;
-
-//
-// Instantiate serial-to-parallel receiver.  
-// Asserts "execute" whenever valid 8-bit value received.
-//
-uart_rx #(
-  .FREQ (FREQ),
-  .BAUD (BAUD)
-) rx (
-  // system signals
-  .clk      (clk),
-  .rst      (rst),
-  //
-  .op       (opcode),
-  .data     (opdata),
-  .execute  (execute),
-  // UART signals
-  .uart_rx  (uart_rx)
-);
-
-//
-// Instantiate parallel-to-serial transmitter.
-// Genereate serial data whenever "send" or "id" asserted.
-// Obeys xon/xoff commands.
-//
 uart_tx #(
-  .FREQ (FREQ),
-  .BAUD (BAUD)
-) tx (
+  .DW (DW),
+  .PT (PT),
+  .SW (SW),
+  .BN (BN)
+) uart_tx (
   // system signals
-  .clk            (clk),
-  .rst            (rst),
-  //
-  .disabledGroups (disabledGroupsReg),
-  .write          (send),
-  .wrdata         (wrdata),
-  .id             (id),
-  .xon            (xon),
-  .xoff           (xoff),
-  .busy           (busy),
-  // UART signals
-  .uart_tx        (uart_tx)
+  .clk         (clk),
+  .rst         (rst),
+  // TXD stream
+  .str_tvalid  (str_txd_tvalid),
+  .str_tdata   (str_txd_tdata ),
+  .str_tready  (str_txd_tready),
+  // UART 
+  .uart_txd    (uart_txd)
 );
+
+uart_rx #(
+  .DW (DW),
+  .PT (PT),
+  .SW (SW),
+  .BN (BN)
+) uart_rx (
+  // system signals
+  .clk         (clk),
+  .rst         (rst),
+  // RXD stream
+  .str_tvalid  (str_rxd_tvalid),
+  .str_tdata   (str_rxd_tdata ),
+  .str_tready  (str_rxd_tready),
+  // error status
+  .error_fifo  (error_fifo  ),
+  .error_parity(error_parity),
+  // UART 
+  .uart_rxd    (uart_rxd)
+);
+
 
 endmodule

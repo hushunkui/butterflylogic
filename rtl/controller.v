@@ -37,16 +37,20 @@
 `timescale 1ns/100ps
 
 module controller (
-  input  wire        clock,
-  input  wire        reset,
+  // system signals
+  input  wire        clk,
+  input  wire        rst,
+  // configuration
+  input  wire        cmd_valid,
+  input  wire [31:0] cmd_data,
+  // stream controll
   input  wire        run,
-  input  wire        wrSize,
-  input  wire [31:0] config_data,
-  input  wire        validIn,
-  input  wire [31:0] dataIn,
-  input  wire        busy,
   input  wire        arm,
-  // outputs...
+  // input stream
+  input  wire        sti_valid,
+  input  wire [31:0] sti_data,
+  // memory interface
+  input  wire        busy,
   output reg         send,
   output reg  [31:0] memoryWrData,
   output reg         memoryRead,
@@ -65,8 +69,8 @@ reg next_memoryLastWrite;
 reg [17:0] counter, next_counter; 
 wire [17:0] counter_inc = counter+1'b1;
 
-always @(posedge clock) 
-memoryWrData <= dataIn;
+always @(posedge clk) 
+memoryWrData <= sti_data;
 
 //
 // Control FSM...
@@ -81,8 +85,8 @@ localparam [2:0]
 reg [2:0] state, next_state; 
 
 initial state = IDLE;
-always @(posedge clock, posedge reset) 
-if (reset) begin
+always @(posedge clk, posedge rst) 
+if (rst) begin
   state           <= IDLE;
   memoryWrite     <= 1'b0;
   memoryLastWrite <= 1'b0;
@@ -94,7 +98,7 @@ end else begin
   memoryRead      <= next_memoryRead;
 end
 
-always @(posedge clock)
+always @(posedge clk)
 begin
   counter <= next_counter;
   send    <= next_send;
@@ -112,60 +116,55 @@ begin
 
   case(state)
     IDLE :
-      begin
-        next_counter = 0;
-        next_memoryWrite = 1;
-	if (run) next_state = DELAY;
-	else if (arm) next_state = SAMPLE;
-      end
+    begin
+      next_counter = 0;
+      next_memoryWrite = 1;
+      if (run) next_state = DELAY;
+      else if (arm) next_state = SAMPLE;
+    end
 
     // default mode: write data samples to memory
     SAMPLE : 
-      begin
-        next_counter = 0;
-        next_memoryWrite = validIn;
-        if (run) next_state = DELAY;
-      end
+    begin
+      next_counter = 0;
+      next_memoryWrite = sti_valid;
+      if (run) next_state = DELAY;
+    end
 
     // keep sampling for 4 * fwd + 4 samples after run condition
     DELAY : 
-      begin
-	if (validIn)
-	  begin
-	    next_memoryWrite = 1'b1;
-            next_counter = counter_inc;
-            if (counter == {fwd,2'b11}) 	// IED - Evaluate only on validIn to make behavior
-	      begin				// match between sampling on all-clocks verses occasionally.
-		next_memoryLastWrite = 1'b1;	// Added LastWrite flag to simplify write->read memory handling.
-		next_counter = 0;
-		next_state = READ;
-	      end
-	  end
+    begin
+      if (sti_valid) begin
+        next_memoryWrite = 1'b1;
+        next_counter = counter_inc;
+        if (counter == {fwd,2'b11}) begin  // IED - Evaluate only on sti_valid to make behavior
+          next_memoryLastWrite = 1'b1;     // match between sampling on all-clocks verses occasionally.
+          next_counter = 0;                // Added LastWrite flag to simplify write->read memory handling.
+          next_state = READ;
+        end
       end
+    end
 
     // read back 4 * bwd + 4 samples after DELAY
     // go into wait state after each sample to give transmitter time
-    READ : 
-      begin
-        next_memoryRead = 1'b1;
-        next_send = 1'b1;
-        if (counter == {bwd,2'b11}) 
-	  begin
-            next_counter = 0;
-            next_state = IDLE;
-          end
-        else 
-	  begin
-            next_counter = counter_inc;
-            next_state = READWAIT;
-          end
+    READ :
+    begin
+      next_memoryRead = 1'b1;
+      next_send = 1'b1;
+      if (counter == {bwd,2'b11}) begin
+        next_counter = 0;
+        next_state = IDLE;
+      end else begin
+        next_counter = counter_inc;
+        next_state = READWAIT;
       end
+    end
 
     // wait for the transmitter to become ready again
     READWAIT : 
-      begin
-        if (!busy && !send) next_state = READ;
-      end
+    begin
+      if (!busy && !send) next_state = READ;
+    end
   endcase
 end
 
@@ -173,7 +172,7 @@ end
 //
 // Set speed and size registers if indicated...
 //
-always @(posedge clock) 
-if (wrSize) {fwd, bwd} <= config_data[31:0];
+always @(posedge clk) 
+if (cmd_valid) {fwd, bwd} <= cmd_data[31:0];
 
 endmodule

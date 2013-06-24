@@ -17,7 +17,8 @@ RTL_SPI = ../rtl/spi_receiver.v    \
           ../rtl/spi_slave.v       \
           ../rtl/spi_transmitter.v
 RTL_UART= ../rtl/uart_rx.v         \
-          ../rtl/uart_tx.v
+          ../rtl/uart_tx.v         \
+          ../rtl/uart.v
 RTL     = ../rtl/cdc.v             \
           ../rtl/controller.v      \
           ../rtl/core.v            \

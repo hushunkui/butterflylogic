@@ -89,7 +89,7 @@ wire [SDW-1:0] delay_data;
 wire           align_valid;
 wire [SDW-1:0] align_data;
 // data stream (rle -> controller)
-wire          rle_valid; 
+wire           rle_valid; 
 wire [SDW-1:0] rle_data;
 
 
@@ -105,29 +105,29 @@ wire arm = arm_basic | arm_adv;
 //
 // Reset...
 //
-wire reset_core;
 wire sti_rst;
 wire resetCmd;
-wire reset = sys_rst | resetCmd;
 
-reset_sync reset_sync_core   (sys_clk, reset     , reset_core  ); 
-reset_sync reset_sync_sample (sti_clk, reset_core, sti_rst);
+wire clk = sys_clk;
+wire rst = sys_rst | resetCmd;
+
+reset_sync reset_sync_sample (sti_clk, rst, sti_rst);
 
 
 //
 // Decode flags register...
 //
 wire [31:0] flags_reg;
-wire demux_mode = flags_reg[0];                    // DDR sample the input data
-wire filter_mode = flags_reg[1];                   // Apply half-clock glitch noise filter to input data
-wire [3:0] disabledGroups = flags_reg[5:2];        // Which channel groups should -not- be captured.
-assign extClock_mode = flags_reg[6];                 // Use external clock for sampling.
-wire falling_edge = flags_reg[7];                  // Capture on falling edge of sample clock.
-wire rleEnable = flags_reg[8];                     // RLE compress samples
-wire numberScheme = flags_reg[9];                  // Swap upper/lower 16 bits
-assign extTestMode = flags_reg[10] && !numberScheme; // Generate external test pattern on upper 16 bits of sti_data
-wire intTestMode = flags_reg[11];                  // Sample internal test pattern instead of sti_data[31:0]
-wire [1:0] rle_mode = flags_reg[15:14];            // Change how RLE logic issues <value> & <counts>
+wire        demux_mode     = flags_reg[0];                    // DDR sample the input data
+wire        filter_mode    = flags_reg[1];                    // Apply half-clock glitch noise filter to input data
+wire  [3:0] disabledGroups = flags_reg[5:2];                  // Which channel groups should -not- be captured.
+assign      extClock_mode  = flags_reg[6];                    // Use external clock for sampling.
+wire        falling_edge   = flags_reg[7];                    // Capture on falling edge of sample clock.
+wire        rleEnable      = flags_reg[8];                    // RLE compress samples
+wire        numberScheme   = flags_reg[9];                    // Swap upper/lower 16 bits
+assign      extTestMode    = flags_reg[10] && !numberScheme;  // Generate external test pattern on upper 16 bits of sti_data
+wire        intTestMode    = flags_reg[11];                   // Sample internal test pattern instead of sti_data[31:0]
+wire  [1:0] rle_mode       = flags_reg[15:14];                // Change how RLE logic issues <value> & <counts>
 
 
 //
@@ -142,17 +142,17 @@ assign run = run_basic | run_adv | sampled_extTriggerIn;
 
 
 //
-// Logic Sniffers LEDs are connected to 3.3V so a logic 0 turns the LED on.
+// indicators can be connected to LED
 //
-always @ (posedge sys_clk, posedge sys_rst)
-if (sys_rst)    indicator_arm <= 1'b0;
+always @ (posedge clk, posedge rst)
+if (rst)        indicator_arm <= 1'b0;
 else begin
   if      (arm) indicator_arm <= 1'b1;
   else if (run) indicator_arm <= 1'b0;
 end
 
-always @(posedge sys_clk, posedge sys_rst)
-if (sys_rst)    indicator_trg <= 1'b0;
+always @(posedge clk, posedge rst)
+if (rst)        indicator_trg <= 1'b0;
 else begin
   if      (run) indicator_trg <= 1'b1;
   else if (arm) indicator_trg <= 1'b0;
@@ -161,10 +161,13 @@ end
 //
 // Decode commands & config registers...
 //
-decoder decoder(
-  .clock        (sys_clk),
-  .execute      (cmd_exe),
-  .opcode       (cmd_code),
+decoder decoder (
+  // system signals
+  .clk          (clk),
+  .rst          (rst),
+  // command
+  .cmd_valid    (cmd_exe),
+  .cmd_code     (cmd_code),
   // outputs...
   .wrtrigmask   (wrtrigmask),
   .wrtrigval    (wrtrigval),
@@ -183,9 +186,9 @@ decoder decoder(
 //
 // Configuration flags register...
 //
-flags flags(
-  .clk         (sys_clk),
-  .rst         (sys_rst),
+flags flags (
+  .clk         (clk),
+  .rst         (rst),
   //
   .cmd_flags   (cmd_flags),
   .cmd_data    (cmd_data),
@@ -232,8 +235,8 @@ cdc #(
   .ffi_vld  (sync_valid),
   .ffi_rdy  (sync_ready),
   // output interface
-  .ffo_clk  (sys_clk),
-  .ffo_rst  (reset_core),
+  .ffo_clk  (clk),
+  .ffo_rst  (rst),
   .ffo_dat  (cdc_data),
   .ffo_vld  (cdc_valid),
   .ffo_rdy  (cdc_ready)
@@ -249,8 +252,8 @@ sampler #(
   .DW (SDW)
 ) sampler (
   // system signals
-  .clk           (sys_clk),
-  .rst           (reset_core),
+  .clk           (clk),
+  .rst           (rst),
   // sonfiguraation/control signals
   .extClock_mode (extClock_mode),
   .wrDivider     (wrDivider),
@@ -272,8 +275,8 @@ trigger #(
   .DW (SDW)
 ) trigger (
   // system signals
-  .clk          (sys_clk),
-  .rst          (reset_core),
+  .clk          (clk),
+  .rst          (rst),
   // configuraation/control signals
   .wrMask       (wrtrigmask),
   .wrValue      (wrtrigval),
@@ -296,8 +299,8 @@ trigger_adv #(
   .DW (SDW)
 ) trigger_adv (
   // system signals
-  .clk           (sys_clk),
-  .rst           (reset_core),
+  .clk           (clk),
+  .rst           (rst),
   // configuraation/control signals
   .wrSelect      (wrTrigSelect),
   .wrChain       (wrTrigChain),
@@ -322,8 +325,8 @@ delay_fifo #(
   .DW (SDW)
 ) delay_fifo (
   // system signals
-  .clk        (sys_clk),
-  .rst        (reset_core),
+  .clk        (clk),
+  .rst        (rst),
   // input stream
   .sti_valid  (sample_valid),
   .sti_data   (sample_data),
@@ -337,8 +340,8 @@ delay_fifo #(
 //
 data_align data_align (
   // system signals
-  .clk            (sys_clk),
-  .rst            (reset_core),
+  .clk            (clk),
+  .rst            (rst),
   // configuration/control signals
   .disabledGroups (disabledGroups),
   // input stream
@@ -355,8 +358,8 @@ data_align data_align (
 //
 rle_enc rle_enc (
   // system signals
-  .clk             (sys_clk),
-  .rst             (reset_core),
+  .clk             (clk),
+  .rst             (rst),
   // configuration/control signals
   .enable          (rleEnable),
   .arm             (arm),
@@ -377,8 +380,8 @@ rle_enc rle_enc (
 pipeline_stall #(
   .DELAY  (2)
 ) dly_arm_reg (
-  .clk     (sys_clk), 
-  .reset   (reset_core), 
+  .clk     (clk), 
+  .reset   (rst), 
   .datain  (arm), 
   .dataout (dly_arm)
 );
@@ -386,8 +389,8 @@ pipeline_stall #(
 pipeline_stall #(
   .DELAY  (1)
 ) dly_run_reg (
-  .clk     (sys_clk), 
-  .reset   (reset_core), 
+  .clk     (clk), 
+  .reset   (rst), 
   .datain  (run), 
   .dataout (dly_run));
 
@@ -395,17 +398,20 @@ pipeline_stall #(
 // The brain's...  mmm... brains...
 //
 controller controller(
-  .clock           (sys_clk),
-  .reset           (reset_core),
+  // system signals
+  .clk             (clk),
+  .rst             (rst),
+  // 
   .run             (dly_run),
-  .wrSize          (wrsize),
-  .config_data     (cmd_data),
   .arm             (dly_arm),
-  .busy            (outputBusy),
+  // command
+  .cmd_valid       (wrsize),
+  .cmd_data        (cmd_data),
   // input stream
-  .validIn         (rle_valid),
-  .dataIn          (rle_data),
+  .sti_valid       (rle_valid),
+  .sti_data        (rle_data ),
   // memory interface
+  .busy            (outputBusy),
   .send            (outputSend),
   .memoryWrData    (memoryWrData),
   .memoryRead      (memoryRead),
@@ -413,4 +419,3 @@ controller controller(
   .memoryLastWrite (memoryLastWrite));
 
 endmodule
-

@@ -20,17 +20,22 @@ always #10 clk = ~clk;
 logic [DW-1:0] str_rxd_tdata ;
 logic          str_rxd_tvalid;
 logic          str_rxd_tready;
+// RXD error status
+logic          error_fifo;
+logic          error_parity;
+
 // TXD stream
 logic [DW-1:0] str_txd_tdata ;
 logic          str_txd_tvalid;
 logic          str_txd_tready;
 
 // UART
-logic          uart_rxd;
-logic          uart_txd;
+wire           uart_rxd;
+wire           uart_txd;
 
 // test signals
 int unsigned   error = 0;
+logic [DW-1:0] data;
 
 ////////////////////////////////////////////////////////////////////////////////
 // test sequence
@@ -45,6 +50,7 @@ begin
   fork
   begin
     uart.transmit (8'ha5);
+    str_rxd.trn (data);
   end
   begin
     str_txd.trn (8'ha5);
@@ -94,38 +100,29 @@ uart_model #(
 // DUT instance
 ////////////////////////////////////////////////////////////////////////////////
 
-uart_tx #(
+uart #(
   .DW (DW),
   .PT (PT),
   .SW (SW),
   .BN (FREQ/BAUD)
-) uart_tx (
+) dut (
   // system signals
-  .clk         (clk),
-  .rst         (rst),
+  .clk             (clk),
+  .rst             (rst),
   // TXD stream
-  .str_tvalid  (str_txd_tvalid),
-  .str_tdata   (str_txd_tdata ),
-  .str_tready  (str_txd_tready),
-  // UART 
-  .uart_txd    (uart_rxd)
-);
-
-uart_rx #(
-  .DW (DW),
-  .PT (PT),
-  .SW (SW),
-  .BN (FREQ/BAUD)
-) uart_rx (
-  // system signals
-  .clk         (clk),
-  .rst         (rst),
+  .str_txd_tvalid  (str_txd_tvalid),
+  .str_txd_tdata   (str_txd_tdata ),
+  .str_txd_tready  (str_txd_tready),
   // RXD stream
-  .str_tvalid  (str_rxd_tvalid),
-  .str_tdata   (str_rxd_tdata ),
-  .str_tready  (str_rxd_tready),
+  .str_rxd_tvalid  (str_rxd_tvalid),
+  .str_rxd_tdata   (str_rxd_tdata ),
+  .str_rxd_tready  (str_rxd_tready),
+  // error status
+  .error_fifo      (error_fifo  ),
+  .error_parity    (error_parity),
   // UART 
-  .uart_rxd    (uart_txd)
+  .uart_txd        (uart_rxd),
+  .uart_rxd        (uart_txd)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

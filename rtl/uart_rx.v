@@ -3,7 +3,7 @@
 // UART receiver
 //
 // Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
-// 
+//
 //////////////////////////////////////////////////////////////////////////////
 //
 // This program is free software; you can redistribute it and/or modify
@@ -37,8 +37,8 @@ module uart_rx #(
   output reg  [DW-1:0] str_tdata ,
   input  wire          str_tready,
   // data stream error status
-  output reg           str_terror_fifo,    // fifo overflow error
-  output reg           str_terror_parity,  // receive data parity error
+  output reg           error_fifo,    // fifo overflow error
+  output reg           error_parity,  // receive data parity error
   // UART
   input  wire          uart_rxd
 );
@@ -81,16 +81,16 @@ end
 
 // fifo overflow error
 always @ (posedge clk, posedge rst)
-if (rst)                 str_terror_fifo <= 1'b0;
+if (rst)                 error_fifo <= 1'b0;
 else begin
-  if (str_transfer)      str_terror_fifo <= 1'b0;
-  else if (rxd_end)      str_terror_fifo <= str_tvalid;
+  if (str_transfer)      error_fifo <= 1'b0;
+  else if (rxd_end)      error_fifo <= str_tvalid;
 end
 
 // receiving stream parity error
 always @ (posedge clk, posedge rst)
-if (rst)                 str_terror_parity <= 1'b0;
-else if (rxd_end)        str_terror_parity <= rxd_prt;
+if (rst)                 error_parity <= 1'b0;
+else if (rxd_end)        error_parity <= rxd_prt;
 
 //////////////////////////////////////////////////////////////////////////////
 // UART receiver

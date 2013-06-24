@@ -37,6 +37,10 @@
 `timescale 1ns/100ps
 
 module Terasic_DE1 #(
+  // logic analyzer parameters
+  parameter int SDW = 32,
+  // memory interface parameters
+  parameter int MDW = 32,
   // Sets the speed for UART communications
   parameter FREQ = 50_000_000,  // 50MHz
   parameter BAUD = 921_600      // 
@@ -69,10 +73,10 @@ wire [31:0] sram_rddata;
 wire  [3:0] sram_rdvalid;
 wire [31:0] stableInput;
 
-wire  [7:0] opcode;
-wire [31:0] config_data; 
+wire  [7:0] ctl_code;
+wire [31:0] ctl_data; 
 
-assign {config_data,opcode} = cmd;
+assign {ctl_data,ctl_code} = cmd;
 
 //--------------------------------------------------------------------------------
 // clocking
@@ -106,36 +110,59 @@ assign extClockOut = clk;
 
 assign dataReady = busy;
 
-//
-// Instantiate serial interface....
-//
 uart #(
-  .FREQ (FREQ),
-  .BAUD (BAUD)
-) uart (
+  .DW (DW),
+  .PT (PT),
+  .SW (SW),
+  .BN (FREQ/BAUD)
+) dut (
   // system signals
-  .clk      (sys_clk),
-  .rst      (sys_rst),
-  // input stream
-  .wrdata   (sram_rddata),
-  .send     (send),
-  // output configuration
-  .cmd      (cmd),
-  .execute  (execute),
-  .busy     (busy),
-  // UART signals
-  .uart_rx  (uart_rx),
-  .uart_tx  (uart_tx)
+  .clk             (clk),
+  .rst             (rst),
+  // TXD stream
+  .str_txd_tvalid  (str_txd_tvalid),
+  .str_txd_tdata   (str_txd_tdata ),
+  .str_txd_tready  (str_txd_tready),
+  // RXD stream
+  .str_rxd_tvalid  (str_rxd_tvalid),
+  .str_rxd_tdata   (str_rxd_tdata ),
+  .str_rxd_tready  (str_rxd_tready),
+  // error status
+  .error_fifo      (error_fifo  ),
+  .error_parity    (error_parity),
+  // UART 
+  .uart_txd        (uart_rxd),
+  .uart_rxd        (uart_txd)
 );
 
-
-//
-// Instantiate core...
-//
+module ctrl #(
+  .MDW (MDW),
+  .HDW (8)
+)(
+  // system signals
+  .clk,
+  .rst,
+  // memory data stream
+  .mem_tvalid  (),
+  .mem_tdata   (),
+  .mem_tready  (),
+  // control stream
+  .ctl_code   (),
+  .ctl_data   (),
+  .ctl_valid  (),
+  // RXD data stream
+  .str_rxd_tvalid  (),
+  .str_rxd_tdata   (),
+  .str_rxd_tready  (),
+  // TXD data stream
+  .str_txd_tvalid  (),
+  .str_txd_tdata   (),
+  .str_txd_tready  ()
+);
 
 core #(
-  .SDW (32),
-  .MDW (32)
+  .SDW (SDW),
+  .MDW (MDW)
 ) core (
   // system signsls
   .sys_clk         (sys_clk),
@@ -145,17 +172,17 @@ core #(
   .sti_data_p      (sti_data),
   .sti_data_n      (sti_data),
   //
-  .extTriggerIn    (extTriggerIn),
-  .opcode          (opcode),
-  .config_data     (config_data),
-  .execute         (execute),
-  .outputBusy      (busy),
+  .ctl_code        (ctl_code),
+  .ctl_data        (ctl_data),
+  .ctl_exe         (ctl_exe),
+  .wrFlags         (wrFlags),
   // outputs...
+  .extTriggerIn    (extTriggerIn),
   .sampleReady50   (),
   .stableInput     (stableInput),
   .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
-  .wrFlags         (wrFlags),
+  .outputBusy      (busy),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
   .indicator_arm   (armLEDnn),
@@ -167,16 +194,14 @@ core #(
   .memoryLastWrite (lastwrite)
 );
 
-//
 // Instantiate the memory interface...
-//
 sram_interface sram_interface (
   // system signals
   .clk          (sys_clk),
   .rst          (sys_rst),
   // configuration/control signals
   .wrFlags      (wrFlags), 
-  .config_data  (config_data[5:2]),
+  .ctl_data     (ctl_data[5:2]),
   // write interface
   .write        (write),
   .lastwrite    (lastwrite),

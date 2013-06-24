@@ -1,0 +1,92 @@
+[*]
+[*] GTKWave Analyzer v3.3.47 (w)1999-2013 BSI
+[*] Sat Jun 22 08:53:59 2013
+[*]
+[dumpfile] "/home/izi/Workplace/butterflylogic/sim/waves.dump"
+[dumpfile_mtime] "Sat Jun 22 08:52:13 2013"
+[dumpfile_size] 26564
+[savefile] "/home/izi/Workplace/butterflylogic/sim/uart.gtkw"
+[timestart] 0
+[size] 1855 1176
+[pos] -1 -1
+*-20.755529 400000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_uart.
+[treeopen] tb_uart.uart.
+[sst_width] 223
+[signals_width] 323
+[sst_expanded] 1
+[sst_vpaned_height] 362
+@800200
+-tb
+@28
+tb_uart.clk
+@22
+tb_uart.error[31:0]
+@28
+tb_uart.rst
+@22
+tb_uart.str_rxd_tdata[7:0]
+@28
+tb_uart.str_rxd_tready
+tb_uart.str_rxd_tvalid
+@22
+tb_uart.str_txd_tdata[7:0]
+@28
+tb_uart.str_txd_tready
+tb_uart.str_txd_tvalid
+tb_uart.uart_rxd
+tb_uart.uart_txd
+@1000200
+-tb
+@800200
+-TX
+@28
+tb_uart.uart_tx.clk
+tb_uart.uart_tx.rst
+@22
+tb_uart.uart_tx.str_tdata[7:0]
+@28
+tb_uart.uart_tx.str_transfer
+@29
+tb_uart.uart_tx.str_tready
+@28
+tb_uart.uart_tx.str_tvalid
+@22
+tb_uart.uart_tx.txd_bdr[5:0]
+tb_uart.uart_tx.txd_cnt[3:0]
+tb_uart.uart_tx.txd_dat[7:0]
+@28
+tb_uart.uart_tx.txd_ena
+tb_uart.uart_tx.txd_run
+tb_uart.uart_tx.uart_txd
+@1000200
+-TX
+@800200
+-RX
+@28
+tb_uart.uart_rx.clk
+tb_uart.uart_rx.rst
+tb_uart.uart_rx.error_fifo
+tb_uart.uart_rx.error_parity
+@22
+tb_uart.uart_rx.rxd_bdr[5:0]
+tb_uart.uart_rx.rxd_cnt[3:0]
+tb_uart.uart_rx.rxd_dat[7:0]
+@28
+tb_uart.uart_rx.rxd_ena
+tb_uart.uart_rx.rxd_end
+tb_uart.uart_rx.rxd_prt
+tb_uart.uart_rx.rxd_run
+tb_uart.uart_rx.rxd_start
+@22
+tb_uart.uart_rx.str_tdata[7:0]
+@28
+tb_uart.uart_rx.str_transfer
+tb_uart.uart_rx.str_tready
+tb_uart.uart_rx.str_tvalid
+tb_uart.uart_rx.uart_rxd
+tb_uart.uart_rx.uart_rxd_dly
+@1000200
+-RX
+[pattern_trace] 1
+[pattern_trace] 0
