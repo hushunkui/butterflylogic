@@ -64,7 +64,7 @@ module Logic_Sniffer #(
 wire        sys_clk;
 wire        sys_clk_p;
 wire        sys_clk_n;
-wire        sys_rst = 1'b0;
+wire        sys_rst;
 
 // external signals
 wire        ext_clk_p;
@@ -238,7 +238,9 @@ dly_signal dataReady_reg (sys_clk, busy, dataReady);
 spi_slave spi_slave (
   // system signals
   .clk        (sys_clk), 
-  .rst        (sys_rst),
+  .rst        (1'b0),
+  // software reset
+  .soft_reset (sys_rst),
   // input stream
   .dataIn     (stableInput),
   .send       (send), 
@@ -265,8 +267,8 @@ core #(
   .MDW (32)
 ) core (
   // system signsls
-  .sys_clk         (sys_clk),
-  .sys_rst         (sys_rst),
+  .clk             (sys_clk),
+  .rst             (sys_rst),
   // input stream
   .sti_clk         (sti_clk_p),
   .sti_data_p      (sti_data_p),

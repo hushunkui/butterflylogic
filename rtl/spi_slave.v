@@ -34,6 +34,8 @@ module spi_slave (
   // system signals
   input  wire        clk,
   input  wire        rst,
+  // software reset
+  output reg         soft_reset,
   // stream signals
   input  wire        send,
   input  wire [31:0] send_data,
@@ -136,11 +138,13 @@ spi_transmitter spi_transmitter(
 always @(posedge clk) 
 begin
   if (cmd_valid) begin
+    soft_reset     <= (cmd_code == 8'h00);
     query_id       <= (cmd_code == 8'h02);
-    query_metadata <= (cmd_code == 8'h04); 
+    query_metadata <= (cmd_code == 8'h04);
     query_dataIn   <= (cmd_code == 8'h06);
   end else begin
-    query_id       <= 1'b0; 
+    soft_reset     <= 1'b0;
+    query_id       <= 1'b0;
     query_metadata <= 1'b0;
     query_dataIn   <= 1'b0;
   end

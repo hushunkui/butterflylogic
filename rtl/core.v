@@ -40,8 +40,8 @@ module core #(
   parameter integer MDW = 32   // memory data width
 )(
   // system signals
-  input  wire           sys_clk,
-  input  wire           sys_rst,     // External reset
+  input  wire           clk,     // clock
+  input  wire           rst,     // reset
   // configuration/control inputs
   input  wire     [7:0] cmd_code,       // Configuration command from serial/SPI interface
   input  wire    [31:0] cmd_data,
@@ -106,11 +106,6 @@ wire arm = arm_basic | arm_adv;
 // Reset...
 //
 wire sti_rst;
-wire resetCmd;
-
-wire clk = sys_clk;
-wire rst = sys_rst | resetCmd;
-
 reset_sync reset_sync_sample (sti_clk, rst, sti_rst);
 
 
@@ -134,8 +129,8 @@ wire  [1:0] rle_mode       = flags_reg[15:14];                // Change how RLE 
 // Sample external trigger signals...
 //
 wire run_basic, run_adv, run; 
-dly_signal extTriggerIn_reg  (sys_clk, extTriggerIn, sampled_extTriggerIn);
-dly_signal extTriggerOut_reg (sys_clk, run, extTriggerOut);
+dly_signal extTriggerIn_reg  (clk, extTriggerIn, sampled_extTriggerIn);
+dly_signal extTriggerOut_reg (clk, run, extTriggerOut);
 
 assign run = run_basic | run_adv | sampled_extTriggerIn;
 
@@ -180,7 +175,7 @@ decoder decoder (
   .finish_now   (finish_now),
   .arm_basic    (arm_basic),
   .arm_adv      (arm_adv),
-  .resetCmd     (resetCmd)
+  .resetCmd     ()
 );
 
 //
