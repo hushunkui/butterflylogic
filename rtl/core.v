@@ -48,10 +48,8 @@ module core #(
   input  wire           cmd_valid,      // cmd_code & cmd_data valid
   output wire           cmd_valid_flags,
   // configuration/control outputs
-  input  wire           outputBusy,
   input  wire           extTriggerIn,
   output wire           sampleReady50,
-  output wire           outputSend,
   output wire           extTriggerOut,
   output wire           extClock_mode,
   output wire           extTestMode,
@@ -63,11 +61,14 @@ module core #(
   input  wire [SDW-1:0] sti_data_n,
   // output stream
   output wire [SDW-1:0] stableInput,
-  // memory interface
-  output wire [MDW-1:0] memoryWrData,
+  // memory read interface
+  input  wire           outputBusy,
+  output wire           outputSend,
   output wire           memoryRead,
-  output wire           memoryWrite,
-  output wire           memoryLastWrite
+  // memory write interface
+  output wire [MDW-1:0] mwr_tdata ,
+  output wire           mwr_tvalid,
+  output wire           mwr_tlast
 );
 
 // data stream (sync -> cdc)
@@ -174,8 +175,7 @@ decoder decoder (
   .wrTrigChain  (wrTrigChain),
   .finish_now   (finish_now),
   .arm_basic    (arm_basic),
-  .arm_adv      (arm_adv),
-  .resetCmd     ()
+  .arm_adv      (arm_adv)
 );
 
 //
@@ -389,7 +389,8 @@ pipeline_stall #(
   .clk     (clk), 
   .reset   (rst), 
   .datain  (run), 
-  .dataout (dly_run));
+  .dataout (dly_run)
+);
 
 //
 // The brain's...  mmm... brains...
@@ -407,12 +408,14 @@ controller controller(
   // input stream
   .sti_valid       (rle_valid),
   .sti_data        (rle_data ),
-  // memory interface
+  // memory read interface
   .busy            (outputBusy),
   .send            (outputSend),
-  .memoryWrData    (memoryWrData),
   .memoryRead      (memoryRead),
-  .memoryWrite     (memoryWrite),
-  .memoryLastWrite (memoryLastWrite));
+  // memory write interface
+  .mwr_tdata       (mwr_tdata ),
+  .mwr_tvalid      (mwr_tvalid),
+  .mwr_tlast       (mwr_tlast )
+);
 
 endmodule

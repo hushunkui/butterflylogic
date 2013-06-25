@@ -29,8 +29,10 @@ module ctrl #(
   parameter integer HDW = 8
 )(
   // system signals
-  input  wire          clk,
-  input  wire          rst,
+  input  wire           clk,
+  input  wire           rst,
+  // software reset
+  output wire           soft_reset,
   // memory data stream
   input  wire           mem_tvalid,
   input  wire [MDW-1:0] mem_tdata ,
@@ -63,8 +65,6 @@ wire       cmd_type;
 // configuration registers
 reg ctl_id;
 reg ctl_flow;
-reg wrFlags;
-reg [3:0] disabledGroupsReg;
 
 // command counter
 always @(posedge clk, posedge rst) 
@@ -107,5 +107,10 @@ end else if (ctl_valid) begin
     8'h13 : ctl_flow <= 1'b0;
   endcase
 end
+
+// software reset
+always @(posedge clk, posedge rst) 
+if (rst) soft_reset <= 1'b0;
+else     soft_reset <= ctl_valid & (ctl_code == 8'h00);
 
 endmodule

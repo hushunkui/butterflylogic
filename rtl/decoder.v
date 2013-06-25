@@ -54,8 +54,7 @@ module decoder (
   output reg        wrTrigChain  = 0,
   output reg        finish_now   = 0,
   output reg        arm_basic    = 0,
-  output reg        arm_adv      = 0,
-  output reg        resetCmd     = 0
+  output reg        arm_adv      = 0
 );
 
 //
@@ -65,7 +64,7 @@ module decoder (
 always @(posedge clk) 
 if (cmd_valid) begin
   // short commands
-  resetCmd      <= (cmd_code == 8'h00);
+  // Reset (decoded in spi_slave.v)
   arm_basic     <= (cmd_code == 8'h01);
   // Query ID (decoded in spi_slave.v)
   // Selftest (reserved)
@@ -97,7 +96,6 @@ if (cmd_valid) begin
   wrtrigval [3] <= (cmd_code == 8'hCD);
   wrtrigcfg [3] <= (cmd_code == 8'hCE);
 end else begin
-  resetCmd      <= 0;
   arm_basic     <= 0;
   finish_now    <= 0;
   arm_adv       <= 0;

@@ -22,7 +22,7 @@
 // Details: http://www.sump.org/projects/analyzer/
 //
 // Takes 32bit (one sample) and sends it out on the SPI interface
-// End of transmission is signalled by taking back the busy flag.
+// End of transmission is signalled by taking back the mem_tready flag.
 //
 //--------------------------------------------------------------------------------
 //
@@ -40,26 +40,27 @@ module spi_transmitter (
   input  wire        spi_cs_n,
   input  wire        spi_sclk,
   output reg         spi_miso,
-  //
-  input  wire        send,
-  input  wire [31:0] send_data,
-  input  wire  [3:0] send_valid,
+  // stream of data from memory
+  input  wire        mem_tvalid,
+  input  wire [31:0] mem_tdata,
+  input  wire  [3:0] mem_tkeep,
+  output reg         mem_tready,
+  // 
   input  wire        writeMeta,
   input  wire  [7:0] meta_data,
   input  wire        query_id,
   input  wire        query_dataIn,
   input  wire [31:0] dataIn,
-  output reg         busy,
   output reg         byteDone
 );
 
-reg [31:0] sampled_send_data, next_sampled_send_data;
-reg [3:0] sampled_send_valid, next_sampled_send_valid;
+reg [31:0] sampled_mem_tdata, next_sampled_mem_tdata;
+reg [3:0] sampled_mem_tkeep, next_sampled_mem_tkeep;
 reg [2:0] bits, next_bits;
 reg [1:0] bytesel, next_bytesel;
 reg next_byteDone;
 reg dly_sclk, next_dly_sclk; 
-reg next_busy;
+reg next_mem_tready;
 
 reg [7:0] txBuffer, next_txBuffer;
 reg next_tx;
@@ -78,10 +79,10 @@ begin
   dbyte = 0;
   disabled = 0;
   case (bytesel)
-    2'h0 : begin dbyte = sampled_send_data[ 7: 0]; disabled = !sampled_send_valid[0]; end
-    2'h1 : begin dbyte = sampled_send_data[15: 8]; disabled = !sampled_send_valid[1]; end
-    2'h2 : begin dbyte = sampled_send_data[23:16]; disabled = !sampled_send_valid[2]; end
-    2'h3 : begin dbyte = sampled_send_data[31:24]; disabled = !sampled_send_valid[3]; end
+    2'h0 : begin dbyte = sampled_mem_tdata[ 7: 0]; disabled = !sampled_mem_tkeep[0]; end
+    2'h1 : begin dbyte = sampled_mem_tdata[15: 8]; disabled = !sampled_mem_tkeep[1]; end
+    2'h2 : begin dbyte = sampled_mem_tdata[23:16]; disabled = !sampled_mem_tkeep[2]; end
+    2'h3 : begin dbyte = sampled_mem_tdata[31:24]; disabled = !sampled_mem_tkeep[3]; end
   endcase
 end
 
@@ -96,16 +97,16 @@ begin
   bits     <= next_bits;
   byteDone <= next_byteDone;
   txBuffer <= next_txBuffer;
-  spi_miso       <= next_tx;
+  spi_miso <= next_tx;
 end
 
 always @*
 begin
   next_dly_sclk = spi_sclk;
-  next_bits = bits;
+  next_bits     = bits;
   next_byteDone = byteDone;
   next_txBuffer = txBuffer;
-  next_tx = spi_miso;
+  next_tx       = spi_miso;
 
   if (writeReset) // simulation clean up - IED
     begin
@@ -127,7 +128,7 @@ begin
     end
  
   // The PIC microcontroller asserts CS# in response to FPGA 
-  // asserting dataReady (busy signal from this module actually).
+  // asserting dataReady (mem_tready signal from this module actually).
   // Until CS# asserts though keep the bits counter reset...
   if (spi_cs_n) next_bits = 0;
 
@@ -152,27 +153,27 @@ reg [1:0] state, next_state;
 initial state = INIT;
 always @(posedge clk, posedge rst) 
 if (rst) begin
-  state              <= INIT;
-  sampled_send_data  <= 32'h0;
-  sampled_send_valid <= 4'h0;
-  bytesel            <= 3'h0;
-  busy               <= 1'b0;
+  state             <= INIT;
+  sampled_mem_tdata <= 32'h0;
+  sampled_mem_tkeep <= 4'h0;
+  bytesel           <= 3'h0;
+  mem_tready        <= 1'b0;
 end else begin
-  state              <= next_state;
-  sampled_send_data  <= next_sampled_send_data;
-  sampled_send_valid <= next_sampled_send_valid;
-  bytesel            <= next_bytesel;
-  busy               <= next_busy;
+  state             <= next_state;
+  sampled_mem_tdata <= next_sampled_mem_tdata;
+  sampled_mem_tkeep <= next_sampled_mem_tkeep;
+  bytesel           <= next_bytesel;
+  mem_tready        <= next_mem_tready;
 end
 
 always @*
 begin
   next_state = state;
-  next_sampled_send_data = sampled_send_data;
-  next_sampled_send_valid = sampled_send_valid;
+  next_sampled_mem_tdata = sampled_mem_tdata;
+  next_sampled_mem_tkeep = sampled_mem_tkeep;
   next_bytesel = bytesel;
 
-  next_busy = (state != IDLE) || send || !byteDone;
+  next_mem_tready = (state != IDLE) || mem_tvalid || !byteDone;
 
   writeReset = 1'b0;
   writeByte = 1'b0;
@@ -181,31 +182,31 @@ begin
     INIT :
       begin
 	writeReset = 1'b1;
-        next_sampled_send_data = 32'h0;
-        next_sampled_send_valid = 4'hF;
+        next_sampled_mem_tdata = 32'h0;
+        next_sampled_mem_tkeep = 4'hF;
         next_bytesel = 3'h0;
-        next_busy = 1'b0;
+        next_mem_tready = 1'b0;
 	next_state = IDLE;
       end
 
     IDLE : 
       begin
-        next_sampled_send_data = send_data;
-        next_sampled_send_valid = send_valid;
+        next_sampled_mem_tdata = mem_tdata;
+        next_sampled_mem_tkeep = mem_tkeep;
 	next_bytesel = 0;
 
-        if (send) 
+        if (mem_tvalid) 
           next_state = SEND;
         else if (query_id) // output dword containing "SLA1" signature
 	  begin
-            next_sampled_send_data = 32'h534c4131; // "SLA1"
-            next_sampled_send_valid = 4'hF;
+            next_sampled_mem_tdata = 32'h534c4131; // "SLA1"
+            next_sampled_mem_tkeep = 4'hF;
             next_state = SEND;
           end
         else if (query_dataIn)
 	  begin
-            next_sampled_send_data = dataIn;
-            next_sampled_send_valid = 4'hF;
+            next_sampled_mem_tdata = dataIn;
+            next_sampled_mem_tkeep = 4'hF;
             next_state = SEND;
 	  end
       end

@@ -85,6 +85,7 @@ assign {ctl_data,ctl_code} = cmd;
 // system signals
 logic sys_clk;
 logic sys_rst;
+logic soft_reset;
 
 assign sys_clk = clk;
 
@@ -108,17 +109,42 @@ assign extClockOut = clk;
 // rtl instances
 //--------------------------------------------------------------------------------
 
-assign dataReady = busy;
+wire           mwr_tvalid;
+wire           mwr_tready;
+wire           mwr_tlast ;
+wire [MDW-1:0] mwr_tdata ;
+
+wire           mrd_tvalid;
+wire           mrd_tready;
+wire [MDW-1:0] mrd_tdata ; 
+wire     [3:0] mrd_tkeep ;
+
+wire [SDW-1:0] stableInput;
+
+wire     [7:0] cmd_code;
+wire    [31:0] cmd_data; 
+wire           cmd_valid;
+
+wire           cmd_valid_flags;
+
+// RXD data stream
+logic          str_rxd_tvalid;
+logic [ 8-1:0] str_rxd_tdata ;
+logic          str_rxd_tready;
+// TXD data stream
+logic          str_txd_tvalid;
+logic [ 8-1:0] str_txd_tdata ;
+logic          str_txd_tready;
 
 uart #(
-  .DW (DW),
-  .PT (PT),
-  .SW (SW),
+  .DW (8),
+  .PT ("NONE"),
+  .SW (1),
   .BN (FREQ/BAUD)
-) dut (
+) uart (
   // system signals
-  .clk             (clk),
-  .rst             (rst),
+  .clk             (sys_clk),
+  .rst             (sys_rst),
   // TXD stream
   .str_txd_tvalid  (str_txd_tvalid),
   .str_txd_tdata   (str_txd_tdata ),
@@ -135,29 +161,32 @@ uart #(
   .uart_rxd        (uart_txd)
 );
 
-module ctrl #(
+ctrl #(
   .MDW (MDW),
   .HDW (8)
-)(
+) ctrl (
   // system signals
-  .clk,
-  .rst,
-  // memory data stream
-  .mem_tvalid  (),
-  .mem_tdata   (),
-  .mem_tready  (),
+  .clk             (sys_clk),
+  .rst             (sys_rst),
+  // software reset
+  .soft_reset      (soft_reset),
+  // input stream
+  .mem_tvalid      (mrd_tvalid), 
+  .mem_tdata       (mrd_tdata ), 
+  .mem_tkeep       (mrd_tkeep ),
+  .mem_tready      (mrd_tready),
   // control stream
-  .cmd_code   (cmd_code ),
-  .cmd_data   (cmd_data ),
-  .cmd_valid  (cmd_valid),
+  .cmd_code        (cmd_code ),
+  .cmd_data        (cmd_data ),
+  .cmd_valid       (cmd_valid),
   // RXD data stream
-  .str_rxd_tvalid  (),
-  .str_rxd_tdata   (),
-  .str_rxd_tready  (),
+  .str_rxd_tvalid  (str_rxd_tvalid),
+  .str_rxd_tdata   (str_rxd_tdata ),
+  .str_rxd_tready  (str_rxd_tready),
   // TXD data stream
-  .str_txd_tvalid  (),
-  .str_txd_tdata   (),
-  .str_txd_tready  ()
+  .str_txd_tvalid  (str_txd_tvalid),
+  .str_txd_tdata   (str_txd_tdata ),
+  .str_txd_tready  (str_txd_tready)
 );
 
 core #(
@@ -166,12 +195,12 @@ core #(
 ) core (
   // system signsls
   .sys_clk         (sys_clk),
-  .sys_rst         (sys_rst),
+  .sys_rst         (sys_rst | soft_reset),
   // input stream
   .sti_clk         (sti_clk),
   .sti_data_p      (sti_data),
   .sti_data_n      (sti_data),
-  //
+  // command interface
   .cmd_code        (cmd_code),
   .cmd_data        (cmd_data),
   .cmd_valid       (cmd_valid),
@@ -180,18 +209,20 @@ core #(
   .extTriggerIn    (extTriggerIn),
   .sampleReady50   (),
   .stableInput     (stableInput),
-  .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
-  .outputBusy      (busy),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
+  // indcators
   .indicator_arm   (armLEDnn),
   .indicator_trg   (triggerLEDnn),
-  // memory interface
-  .memoryWrData    (sram_wrdata),
+  // memory read interface
+  .outputBusy      (mrd_tready),
+  .outputSend      (mrd_tvalid),
   .memoryRead      (read),
-  .memoryWrite     (write),
-  .memoryLastWrite (lastwrite)
+  // memory write interface
+  .mwr_tvalid      (mwr_tvalid),
+  .mwr_tlast       (mwr_tlast ),
+  .mwr_tdata       (mwr_tdata )
 );
 
 // Instantiate the memory interface...
@@ -200,17 +231,18 @@ sram_interface sram_interface (
   .clk          (sys_clk),
   .rst          (sys_rst),
   // configuration/control signals
-  .cmd_valid    (cmd_valid_flags), 
+  .cmd_flags    (cmd_valid_flags), 
   .cmd_data     (cmd_data[5:2]),
   // write interface
-  .write        (write),
-  .lastwrite    (lastwrite),
-  .wrdata       (sram_wrdata),
+  .mwr_tready   (),
+  .mwr_tvalid   (mwr_tvalid),
+  .mwr_tlast    (mwr_tlast ),
+  .mwr_tdata    (mwr_tdata ),
   // read interface
-  .rd_ready     (read),
-  .rd_valid     (),
-  .rd_keep      (sram_rdvalid),
-  .rd_data      (sram_rddata)
+  .mrd_tready   (read),
+  .mrd_tvalid   (),
+  .mrd_tkeep    (mrd_tkeep ),
+  .mrd_tdata    (mrd_tdata )
 );
 
 endmodule

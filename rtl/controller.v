@@ -49,13 +49,14 @@ module controller (
   // input stream
   input  wire        sti_valid,
   input  wire [31:0] sti_data,
-  // memory interface
+  // memory read interface
   input  wire        busy,
   output reg         send,
-  output reg  [31:0] memoryWrData,
   output reg         memoryRead,
-  output reg         memoryWrite,
-  output reg         memoryLastWrite
+  // memory write interface
+  output reg  [31:0] mwr_tdata ,
+  output reg         mwr_tvalid,
+  output reg         mwr_tlast
 );
 
 reg [15:0] fwd; // Config registers...
@@ -63,14 +64,14 @@ reg [15:0] bwd;
 
 reg next_send;
 reg next_memoryRead;
-reg next_memoryWrite;
-reg next_memoryLastWrite;
+reg next_mwr_tvalid;
+reg next_mwr_tlast ;
 
 reg [17:0] counter, next_counter; 
 wire [17:0] counter_inc = counter+1'b1;
 
 always @(posedge clk) 
-memoryWrData <= sti_data;
+mwr_tdata <= sti_data;
 
 //
 // Control FSM...
@@ -87,15 +88,15 @@ reg [2:0] state, next_state;
 initial state = IDLE;
 always @(posedge clk, posedge rst) 
 if (rst) begin
-  state           <= IDLE;
-  memoryWrite     <= 1'b0;
-  memoryLastWrite <= 1'b0;
-  memoryRead      <= 1'b0;
+  state       <= IDLE;
+  mwr_tvalid  <= 1'b0;
+  mwr_tlast   <= 1'b0;
+  memoryRead  <= 1'b0;
 end else begin
-  state           <= next_state;
-  memoryWrite     <= next_memoryWrite;
-  memoryLastWrite <= next_memoryLastWrite;
-  memoryRead      <= next_memoryRead;
+  state       <= next_state;
+  mwr_tvalid  <= next_mwr_tvalid;
+  mwr_tlast   <= next_mwr_tlast;
+  memoryRead  <= next_memoryRead;
 end
 
 always @(posedge clk)
@@ -107,18 +108,18 @@ end
 // FSM to control the controller action
 always @*
 begin
-  next_state = state;
-  next_counter = counter;
-  next_memoryWrite = 1'b0;
-  next_memoryLastWrite = 1'b0;
+  next_state      = state;
+  next_counter    = counter;
+  next_mwr_tvalid = 1'b0;
+  next_mwr_tlast  = 1'b0;
   next_memoryRead = 1'b0;
-  next_send = 1'b0;
+  next_send       = 1'b0;
 
   case(state)
     IDLE :
     begin
       next_counter = 0;
-      next_memoryWrite = 1;
+      next_mwr_tvalid = 1;
       if (run) next_state = DELAY;
       else if (arm) next_state = SAMPLE;
     end
@@ -127,7 +128,7 @@ begin
     SAMPLE : 
     begin
       next_counter = 0;
-      next_memoryWrite = sti_valid;
+      next_mwr_tvalid = sti_valid;
       if (run) next_state = DELAY;
     end
 
@@ -135,10 +136,10 @@ begin
     DELAY : 
     begin
       if (sti_valid) begin
-        next_memoryWrite = 1'b1;
+        next_mwr_tvalid = 1'b1;
         next_counter = counter_inc;
         if (counter == {fwd,2'b11}) begin  // IED - Evaluate only on sti_valid to make behavior
-          next_memoryLastWrite = 1'b1;     // match between sampling on all-clocks verses occasionally.
+          next_mwr_tlast = 1'b1;     // match between sampling on all-clocks verses occasionally.
           next_counter = 0;                // Added LastWrite flag to simplify write->read memory handling.
           next_state = READ;
         end

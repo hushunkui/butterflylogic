@@ -47,30 +47,29 @@ module sram_interface #(
   input  wire           cmd_flags,
   input  wire     [3:0] cmd_data,
   // write interface
-  input  wire           write,
-  input  wire           lastwrite,
-  input  wire [MDW-1:0] wrdata,
+  input  wire           mwr_tready,
+  input  wire           mwr_tvalid,
+  input  wire           mwr_tlast,
+  input  wire [MDW-1:0] mwr_tdata ,
   // read interface
-  input  wire           rd_ready,
-  output reg            rd_valid,
-  output reg      [3:0] rd_keep,
-  output wire [MDW-1:0] rd_data
+  input  wire           mrd_tready,
+  output reg            mrd_tvalid,
+  output reg      [3:0] mrd_tkeep ,
+  output wire [MDW-1:0] mrd_tdata
 );
+
+assign mwr_tready = 1'b1;
 
 //
 // Registers...
 //
-reg init, next_init;
+reg       init;
 reg [1:0] mode, next_mode;
 reg [3:0] validmask, next_validmask;
 
 reg [3:0] clkenb, next_clkenb;
 reg [MAW-1:0] address, next_address;
-reg [3:0] next_rd_keep;
-
-wire maxaddr = &address[MAW-1-2:0] & address[MAW-1]; // detect 0x17FF
-wire addrzero = ~|address;
-
+reg [3:0] next_mrd_tkeep;
 
 //
 // Control logic...
@@ -82,30 +81,29 @@ begin
   validmask = 4'hF;
   clkenb = 4'b1111;
   address = 0;
-  rd_keep = 4'b0000;
-  rd_valid = 1'b0;
+  mrd_tkeep = 4'b0000;
+  mrd_tvalid = 1'b0;
 end
 always @ (posedge clk)
 begin
-  init      <= next_init;
+  init      <= cmd_flags;
+
   mode      <= next_mode;
   validmask <= next_validmask;
   clkenb    <= next_clkenb;
   address   <= next_address;
-  rd_keep   <= next_rd_keep;
-  rd_valid  <=|next_rd_keep;
+  mrd_tkeep   <= next_mrd_tkeep;
+  mrd_tvalid  <=|next_mrd_tkeep;
 end
 
 
 always @*
 begin
-  next_init = 1'b0;
   next_mode = mode;
   next_validmask = validmask;
-
   next_clkenb = clkenb;
   next_address = address;
-  next_rd_keep = clkenb & validmask;
+  next_mrd_tkeep = clkenb & validmask;
 
   //
   // Setup architecture of RAM based on which groups are enabled/disabled.
@@ -115,20 +113,19 @@ begin
   //
   if (cmd_flags)
     begin
-      next_init = 1'b1;
-      next_mode = 0; // 32 bit wide, 6k deep  +  24 bit wide, 6k deep
       case (cmd_data)
         4'b1100, 4'b0011, 4'b0110, 4'b1001, 4'b1010, 4'b0101 : next_mode = 2'b10; // 16 bit wide, 12k deep
-        4'b1110, 4'b1101, 4'b1011, 4'b0111 : next_mode = 2'b01; // 8 bit wide, 24k deep
+        4'b1110, 4'b1101, 4'b1011, 4'b0111 :                   next_mode = 2'b01; // 8 bit wide, 24k deep
+        default:                                               next_mode = 0; // 32 bit wide, 6k deep  +  24 bit wide, 6k deep
       endcase
 
       // The clkenb register normally indicates which bytes are valid during a read.
       // However in 24-bit mode, all 32-bits of BRAM are being used.  Thus we need to
       // tweak things a bit.  Since data is aligned (see data_align.v), all we need 
       // do is ignore the MSB here...
-      next_validmask = 4'hF;
       case (cmd_data)
         4'b0001, 4'b0010, 4'b0100, 4'b1000 : next_validmask = 4'h7;
+        default:                             next_validmask = 4'hF;
       endcase
     end
 
@@ -140,40 +137,39 @@ begin
   // before changing clock enables.  Client sees no difference. However, 
   // it'll eventally allow easier streaming of data to the client...
   //
-  casex ({write && !lastwrite, rd_ready})
+  casex ({mwr_tvalid && !mwr_tlast, mrd_tready})
     2'b1x : // inc clkenb/address on all but last write (to avoid first read being bogus)...
       begin
-        next_clkenb = 4'b1111;
         casex (mode[1:0])
-          2'bx1 : next_clkenb = {clkenb[2:0],clkenb[3]};   // 8 bit
-          2'b1x : next_clkenb = {clkenb[1:0],clkenb[3:2]}; // 16 bit
+          2'bx1  : next_clkenb = {clkenb[2:0],clkenb[3  ]}; //  8 bit
+          2'b1x  : next_clkenb = {clkenb[1:0],clkenb[3:2]}; // 16 bit
+          default: next_clkenb = 4'b1111;                   // 32 bit
         endcase
-        if (clkenb[3]) next_address = (maxaddr) ? 0 : address+1'b1;
+        if (clkenb[3]) next_address = (address == MSZ-1) ? 0 : address+1'b1;
       end
 
     2'bx1 : 
       begin
-        next_clkenb = 4'b1111;
         casex (mode[1:0])
-          2'bx1 : next_clkenb = {clkenb[0],clkenb[3:1]};   // 8 bit
-          2'b1x : next_clkenb = {clkenb[1:0],clkenb[3:2]}; // 16 bit
+          2'bx1  : next_clkenb = {clkenb[  0],clkenb[3:1]}; //  8 bit
+          2'b1x  : next_clkenb = {clkenb[1:0],clkenb[3:2]}; // 16 bit
+          default: next_clkenb = 4'b1111;                   // 32 bit
         endcase
-        if (clkenb[0]) next_address = (addrzero) ? MSZ-1 : address-1'b1;
+        if (clkenb[0]) next_address = (address == 0) ? MSZ-1 : address-1'b1;
       end
   endcase
 
   //
   // Reset clock enables & ram address...
   //
-  if (init) 
-    begin
-      next_clkenb = 4'b1111; 
-      casex (mode[1:0])
-        2'bx1 : next_clkenb = 4'b0001; // 1 byte writes
-        2'b1x : next_clkenb = 4'b0011; // 2 byte writes
-      endcase
-      next_address = 0;
-    end
+  if (init) begin
+    casex (mode[1:0])
+      2'bx1  : next_clkenb = 4'b0001; // 1 byte writes
+      2'b1x  : next_clkenb = 4'b0011; // 2 byte writes
+      default: next_clkenb = 4'b1111; // 4 byte writes
+    endcase
+    next_address = 0;
+  end
 end
 
 
@@ -182,13 +178,11 @@ end
 //
 reg [MDW-1:0] ram_datain;
 always @*
-begin
-  ram_datain = wrdata;
-  casex (mode[1:0])
-    2'bx1 : ram_datain[31:0] = {wrdata[7:0],wrdata[7:0],wrdata[7:0],wrdata[7:0]}; // 8 bit memory
-    2'b1x : ram_datain[31:0] = {wrdata[15:0],wrdata[15:0]}; // 16 bit memory
-  endcase
-end
+casex (mode[1:0])
+  2'bx1  : ram_datain[31:0] = {4{mwr_tdata[ 7:0]}}; //  8 bit memory
+  2'b1x  : ram_datain[31:0] = {2{mwr_tdata[15:0]}}; // 16 bit memory
+  default: ram_datain[31:0] =    mwr_tdata[31:0]  ; // 32 bit memory
+endcase
 
 //
 // Instantiate RAM's (each BRAM6kx9bit in turn instantiates three 2kx9's block RAM's)...
@@ -201,18 +195,18 @@ for (i=0; i<4; i=i+1) begin : mem
   // byte wide memory array
   reg [8-1:0] mem1 [0:2048-1];
   reg [8-1:0] mem0 [0:4096-1];
-  reg [8-1:0] rd_data1;
-  reg [8-1:0] rd_data0;
+  reg [8-1:0] mrd_tdata1;
+  reg [8-1:0] mrd_tdata0;
   reg         adr_reg;
   // write access
-  always @ (posedge clk)  if (write & clkenb[i] &  address[12]) mem1 [address[10:0]] <= ram_datain[i*8+:8];
-  always @ (posedge clk)  if (write & clkenb[i] & ~address[12]) mem0 [address[10:0]] <= ram_datain[i*8+:8];
+  always @ (posedge clk)  if (mwr_tvalid & clkenb[i] &  address[12]) mem1 [address[10:0]] <= ram_datain[i*8+:8];
+  always @ (posedge clk)  if (mwr_tvalid & clkenb[i] & ~address[12]) mem0 [address[10:0]] <= ram_datain[i*8+:8];
   // read access
-  always @ (posedge clk)  rd_data1 <= mem1 [address[10:0]];
-  always @ (posedge clk)  rd_data0 <= mem0 [address[11:0]];
+  always @ (posedge clk)  mrd_tdata1 <= mem1 [address[10:0]];
+  always @ (posedge clk)  mrd_tdata0 <= mem0 [address[11:0]];
   // multiplexer
   always @ (posedge clk) adr_reg <= address[12];
-  assign rd_data [i*8+:8] = adr_reg ? rd_data1 : rd_data0;
+  assign mrd_tdata [i*8+:8] = adr_reg ? mrd_tdata1 : mrd_tdata0;
 end
 endgenerate
 
@@ -226,11 +220,11 @@ for (i=0; i<4; i=i+1) begin : mem
   reg [8-1:0] mem_rdt;
   // write access
   always @ (posedge clk)
-  if (write & clkenb[i]) mem [address] <= ram_datain[i*8+:8];
+  if (mwr_tvalid & clkenb[i]) mem [address] <= ram_datain[i*8+:8];
   // read access
   always @ (posedge clk)
   mem_rdt <= mem [address];
-  assign rd_data [i*8+:8] = mem_rdt;
+  assign mrd_tdata [i*8+:8] = mem_rdt;
 end
 endgenerate
 

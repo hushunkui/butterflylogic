@@ -36,12 +36,13 @@ module spi_slave (
   input  wire        rst,
   // software reset
   output reg         soft_reset,
-  // stream signals
-  input  wire        send,
-  input  wire [31:0] send_data,
-  input  wire  [3:0] send_valid,
+  // raw data input
   input  wire [31:0] dataIn,
-  output wire        busy,
+  // stream signals
+  input  wire        mem_tvalid,
+  input  wire [31:0] mem_tdata,
+  input  wire  [3:0] mem_tkeep,
+  output wire        mem_tready,
   // command signals
   output wire  [7:0] cmd_code,
   output wire [31:0] cmd_data,
@@ -87,7 +88,7 @@ meta_handler meta_handler(
   .extReset        (rst),
   //
   .query_metadata  (query_metadata),
-  .xmit_idle       (!busy && !send && byteDone),
+  .xmit_idle       (!mem_tready && !mem_tvalid && byteDone),
   .writeMeta       (writeMeta),
   .meta_data       (meta_data)
 );
@@ -104,7 +105,7 @@ spi_receiver spi_receiver(
   .spi_mosi     (spi_mosi),
   .spi_cs_n     (sync_cs_n),
   //
-  .transmitting (busy),
+  .transmitting (mem_tready),
   //
   .cmd_code     (cmd_code ),
   .cmd_data     (cmd_data ),
@@ -120,15 +121,16 @@ spi_transmitter spi_transmitter(
   .spi_cs_n     (sync_cs_n),
   .spi_miso     (spi_miso),
   //
-  .send         (send),
-  .send_data    (send_data),
-  .send_valid   (send_valid),
+  .mem_tvalid   (mem_tvalid),
+  .mem_tdata    (mem_tdata),
+  .mem_tkeep    (mem_tkeep),
+  .mem_tready   (mem_tready),
+  //
   .writeMeta    (writeMeta),
   .meta_data    (meta_data),
   .query_id     (query_id), 
   .query_dataIn (query_dataIn),
   .dataIn       (dataIn),
-  .busy         (busy),
   .byteDone     (byteDone)
 );
 

@@ -37,8 +37,8 @@
 `timescale 1ns/100ps
 
 module Logic_Sniffer #(
-  parameter MEMORY_DEPTH=6,
-  parameter CLOCK_SPEED=50
+  parameter SDW = 32, // sample data width
+  parameter MDW = 32  // memory data width
 )(
   // system signals
   input  wire        bf_clock,
@@ -61,35 +61,24 @@ module Logic_Sniffer #(
 );
 
 // system signals
-wire        sys_clk;
-wire        sys_clk_p;
-wire        sys_clk_n;
-wire        sys_rst;
+wire           sys_clk;
+wire           sys_clk_p;
+wire           sys_clk_n;
+wire           sys_rst;
 
 // external signals
-wire        ext_clk_p;
-wire        ext_clk_n;
+wire           ext_clk_p;
+wire           ext_clk_n;
 
 // data path signals
-wire        sti_clk_p;
-wire        sti_clk_n;
-wire [31:0] sti_data;
-wire [31:0] sti_data_p;
-wire [31:0] sti_data_n;
+wire           sti_clk_p;
+wire           sti_clk_n;
+wire [SDW-1:0] sti_data;
+wire [SDW-1:0] sti_data_p;
+wire [SDW-1:0] sti_data_n;
 
 wire extClock_mode;
 wire extTestMode;
-
-wire [31:0] sram_wrdata;
-wire [31:0] sram_rddata; 
-wire  [3:0] sram_rdvalid;
-wire [31:0] stableInput;
-
-wire  [7:0] cmd_code;
-wire [31:0] cmd_data; 
-wire        cmd_valid;
-
-wire        cmd_valid_flags;
 
 //--------------------------------------------------------------------------------
 // clocking
@@ -228,8 +217,26 @@ IDDR2 #(
 // rtl instances
 //--------------------------------------------------------------------------------
 
+wire           mwr_tvalid;
+wire           mwr_tready;
+wire           mwr_tlast ;
+wire [MDW-1:0] mwr_tdata ;
+
+wire           mrd_tvalid;
+wire           mrd_tready;
+wire [MDW-1:0] mrd_tdata ; 
+wire     [3:0] mrd_tkeep ;
+
+wire [SDW-1:0] stableInput;
+
+wire     [7:0] cmd_code;
+wire    [31:0] cmd_data; 
+wire           cmd_valid;
+
+wire           cmd_valid_flags;
+
 // Output dataReady to PIC (so it'll enable our SPI CS#)...
-dly_signal dataReady_reg (sys_clk, busy, dataReady);
+dly_signal dataReady_reg (sys_clk, mrd_tready, dataReady);
 
 //
 // Instantiate serial interface....
@@ -241,12 +248,12 @@ spi_slave spi_slave (
   .rst        (1'b0),
   // software reset
   .soft_reset (sys_rst),
-  // input stream
   .dataIn     (stableInput),
-  .send       (send), 
-  .send_data  (sram_rddata), 
-  .send_valid (sram_rdvalid),
-  .busy       (busy),
+  // input stream
+  .mem_tvalid (mrd_tvalid), 
+  .mem_tdata  (mrd_tdata ), 
+  .mem_tkeep  (mrd_tkeep ),
+  .mem_tready (mrd_tready),
   // output configuration
   .cmd_code   (cmd_code),
   .cmd_data   (cmd_data),
@@ -274,31 +281,31 @@ core #(
   .sti_data_p      (sti_data_p),
   .sti_data_n      (sti_data_n),
   .extTriggerIn    (extTriggerIn),
-  //
+  // command interface
   .cmd_code        (cmd_code),
   .cmd_data        (cmd_data),
   .cmd_valid       (cmd_valid),
   .cmd_valid_flags (cmd_valid_flags),
   // outputs...
-  .outputBusy      (busy),
   .sampleReady50   (),
   .stableInput     (stableInput),
-  .outputSend      (send),
   .extTriggerOut   (extTriggerOut),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
+  // indicators
   .indicator_arm   (armLEDnn),
   .indicator_trg   (triggerLEDnn),
-  // memory interface
-  .memoryWrData    (sram_wrdata),
+  // memory read interface
+  .outputBusy      (mrd_tready),
+  .outputSend      (mrd_tvalid),
   .memoryRead      (read),
-  .memoryWrite     (write),
-  .memoryLastWrite (lastwrite)
+  // memory write interface
+  .mwr_tvalid      (mwr_tvalid),
+  .mwr_tlast       (mwr_tlast ),
+  .mwr_tdata       (mwr_tdata )
 );
 
-//
 // Instantiate the memory interface...
-//
 sram_interface sram_interface (
   // system signals
   .clk          (sys_clk),
@@ -307,14 +314,15 @@ sram_interface sram_interface (
   .cmd_flags    (cmd_valid_flags), 
   .cmd_data     (cmd_data[5:2]),
   // write interface
-  .write        (write),
-  .lastwrite    (lastwrite),
-  .wrdata       (sram_wrdata),
+  .mwr_tready   (),
+  .mwr_tvalid   (mwr_tvalid),
+  .mwr_tlast    (mwr_tlast ),
+  .mwr_tdata    (mwr_tdata ),
   // read interface
-  .rd_ready     (read),
-  .rd_valid     (),
-  .rd_keep      (sram_rdvalid),
-  .rd_data      (sram_rddata)
+  .mrd_tready   (read),
+  .mrd_tvalid   (),
+  .mrd_tkeep    (mrd_tkeep ),
+  .mrd_tdata    (mrd_tdata )
 );
 
 endmodule
