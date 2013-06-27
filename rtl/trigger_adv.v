@@ -146,12 +146,15 @@ module trigger_adv #(
   input  wire          wrChain,
   input  wire   [31:0] config_data,
   // input stream
-  input  wire          sti_valid,
-  input  wire [DW-1:0] sti_data,		// Channel data...
+  input  wire          sti_tready,
+  input  wire          sti_tvalid,
+  input  wire [DW-1:0] sti_tdata ,
   //
   output reg           run,			// Full capture
   output reg           capture			// Single capture
 );
+
+wire sti_transfer = sti_tready & sti_tvalid;
 
 //
 // Registers...
@@ -171,7 +174,7 @@ reg next_capture;
 
 wire last_state = &state;
 
-pipeline_stall #(.DELAY(2)) dly_sti_valid_reg (clk, rst, sti_valid, dly_sti_valid); // sync with output of trigterms
+pipeline_stall #(.DELAY(2)) dly_sti_transfer_reg (clk, rst, sti_transfer, dly_sti_transfer); // sync with output of trigterms
 
 
 
@@ -288,7 +291,7 @@ timer timer2 (clk, rst, wrenb_timer[1], wraddr[0], config_data,
 //
 wire hit_term, else_term, capture_term;
 trigterms trigterms (
-  clk, sti_data, timer1_elapsed, timer2_elapsed, 
+  clk, sti_tdata, timer1_elapsed, timer2_elapsed, 
   wrenb, wraddr, wrdata[31], 
   state, {capture_term, else_term, hit_term});
 
@@ -330,7 +333,7 @@ begin
   update_timers = 1'b0;
 
   // Evaluate state...
-  if (active && dly_sti_valid)
+  if (active && dly_sti_transfer)
     begin
       next_capture = capture_term || force_capture;
       if (!finished)
@@ -381,7 +384,7 @@ endmodule
 //
 module trigterms (
   input  wire        clk,
-  input  wire [31:0] sti_data,
+  input  wire [31:0] sti_tdata,
   input  wire        timer1_hit,
   input  wire        timer2_hit,
   input  wire        wrenb,
@@ -409,27 +412,27 @@ end
 wire [7:0] terma_hit, termb_hit, termc_hit, termd_hit;
 wire [7:0] terme_hit, termf_hit, termg_hit, termh_hit;
 wire [7:0] termi_hit, termj_hit;
-trigterm_32bit terma (sti_data, clk, wrenb_term[0] || wrenb_term[15], din, terma_dout, terma_hit);
-trigterm_32bit termb (sti_data, clk, wrenb_term[1] || wrenb_term[15], din, termb_dout, termb_hit);
-trigterm_32bit termc (sti_data, clk, wrenb_term[2] || wrenb_term[15], din, termc_dout, termc_hit);
-trigterm_32bit termd (sti_data, clk, wrenb_term[3] || wrenb_term[15], din, termd_dout, termd_hit);
-trigterm_32bit terme (sti_data, clk, wrenb_term[4] || wrenb_term[15], din, terme_dout, terme_hit);
-trigterm_32bit termf (sti_data, clk, wrenb_term[5] || wrenb_term[15], din, termf_dout, termf_hit);
-trigterm_32bit termg (sti_data, clk, wrenb_term[6] || wrenb_term[15], din, termg_dout, termg_hit);
-trigterm_32bit termh (sti_data, clk, wrenb_term[7] || wrenb_term[15], din, termh_dout, termh_hit);
-trigterm_32bit termi (sti_data, clk, wrenb_term[8] || wrenb_term[15], din, termi_dout, termi_hit);
-trigterm_32bit termj (sti_data, clk, wrenb_term[9] || wrenb_term[15], din, termj_dout, termj_hit);
+trigterm_32bit terma (sti_tdata, clk, wrenb_term[0] || wrenb_term[15], din, terma_dout, terma_hit);
+trigterm_32bit termb (sti_tdata, clk, wrenb_term[1] || wrenb_term[15], din, termb_dout, termb_hit);
+trigterm_32bit termc (sti_tdata, clk, wrenb_term[2] || wrenb_term[15], din, termc_dout, termc_hit);
+trigterm_32bit termd (sti_tdata, clk, wrenb_term[3] || wrenb_term[15], din, termd_dout, termd_hit);
+trigterm_32bit terme (sti_tdata, clk, wrenb_term[4] || wrenb_term[15], din, terme_dout, terme_hit);
+trigterm_32bit termf (sti_tdata, clk, wrenb_term[5] || wrenb_term[15], din, termf_dout, termf_hit);
+trigterm_32bit termg (sti_tdata, clk, wrenb_term[6] || wrenb_term[15], din, termg_dout, termg_hit);
+trigterm_32bit termh (sti_tdata, clk, wrenb_term[7] || wrenb_term[15], din, termh_dout, termh_hit);
+trigterm_32bit termi (sti_tdata, clk, wrenb_term[8] || wrenb_term[15], din, termi_dout, termi_hit);
+trigterm_32bit termj (sti_tdata, clk, wrenb_term[9] || wrenb_term[15], din, termj_dout, termj_hit);
 
-trigterm_range range1l (sti_data, clk, wrenb_range_edge[0], din, range1_lower); // lower = datain>target
-trigterm_range range1u (sti_data, clk, wrenb_range_edge[1], din, range1_upper); 
-trigterm_range range2l (sti_data, clk, wrenb_range_edge[2], din, range2_lower);
-trigterm_range range2u (sti_data, clk, wrenb_range_edge[3], din, range2_upper);
+trigterm_range range1l (sti_tdata, clk, wrenb_range_edge[0], din, range1_lower); // lower = datain>target
+trigterm_range range1u (sti_tdata, clk, wrenb_range_edge[1], din, range1_upper); 
+trigterm_range range2l (sti_tdata, clk, wrenb_range_edge[2], din, range2_lower);
+trigterm_range range2u (sti_tdata, clk, wrenb_range_edge[3], din, range2_upper);
 
-wire [31:0] dly_sti_data;
-dly_signal #(32) dly_sti_data_reg (clk, sti_data, dly_sti_data);
+wire [31:0] dly_sti_tdata;
+dly_signal #(32) dly_sti_tdata_reg (clk, sti_tdata, dly_sti_tdata);
 
-trigterm_edge edge1 (sti_data, dly_sti_data, clk, wrenb_range_edge[4], din, edge1_hit);
-trigterm_edge edge2 (sti_data, dly_sti_data, clk, wrenb_range_edge[5], din, edge2_hit);
+trigterm_edge edge1 (sti_tdata, dly_sti_tdata, clk, wrenb_range_edge[4], din, edge1_hit);
+trigterm_edge edge2 (sti_tdata, dly_sti_tdata, clk, wrenb_range_edge[5], din, edge2_hit);
 
 wire range1_upper_hit = !range1_upper; // upper>=datain>lower
 wire range2_upper_hit = !range2_upper; // upper>=datain>lower
@@ -557,7 +560,7 @@ endmodule
 // 128 bit serial cfg chain (16 bytes)...
 //
 module trigterm_32bit (
-  input  wire [31:0] sti_data,
+  input  wire [31:0] sti_tdata,
   input  wire        clk,
   input  wire        wrenb,
   input  wire        din,
@@ -565,14 +568,14 @@ module trigterm_32bit (
   output wire  [7:0] hit
 );
 wire [6:0] n;
-trigterm_4bit nyb0 (sti_data[ 3: 0], clk, wrenb,  din, n[0], hit[0]);
-trigterm_4bit nyb1 (sti_data[ 7: 4], clk, wrenb, n[0], n[1], hit[1]);
-trigterm_4bit nyb2 (sti_data[11: 8], clk, wrenb, n[1], n[2], hit[2]);
-trigterm_4bit nyb3 (sti_data[15:12], clk, wrenb, n[2], n[3], hit[3]);
-trigterm_4bit nyb4 (sti_data[19:16], clk, wrenb, n[3], n[4], hit[4]);
-trigterm_4bit nyb5 (sti_data[23:20], clk, wrenb, n[4], n[5], hit[5]);
-trigterm_4bit nyb6 (sti_data[27:24], clk, wrenb, n[5], n[6], hit[6]);
-trigterm_4bit nyb7 (sti_data[31:28], clk, wrenb, n[6], dout, hit[7]);
+trigterm_4bit nyb0 (sti_tdata[ 3: 0], clk, wrenb,  din, n[0], hit[0]);
+trigterm_4bit nyb1 (sti_tdata[ 7: 4], clk, wrenb, n[0], n[1], hit[1]);
+trigterm_4bit nyb2 (sti_tdata[11: 8], clk, wrenb, n[1], n[2], hit[2]);
+trigterm_4bit nyb3 (sti_tdata[15:12], clk, wrenb, n[2], n[3], hit[3]);
+trigterm_4bit nyb4 (sti_tdata[19:16], clk, wrenb, n[3], n[4], hit[4]);
+trigterm_4bit nyb5 (sti_tdata[23:20], clk, wrenb, n[4], n[5], hit[5]);
+trigterm_4bit nyb6 (sti_tdata[27:24], clk, wrenb, n[5], n[6], hit[6]);
+trigterm_4bit nyb7 (sti_tdata[31:28], clk, wrenb, n[6], dout, hit[7]);
 endmodule
 
 //
@@ -605,22 +608,22 @@ endmodule
 // 512 bits.
 //
 module trigterm_range (
-  input  wire [31:0] sti_data,
+  input  wire [31:0] sti_tdata,
   input  wire        clk,
   input  wire        wrenb,
   input  wire        din,
   output wire        hit
 );
-trigterm_range_byte byte0 (sti_data[ 7: 0], clk, wrenb,   din, dout0,  1'b1, cout0);
-trigterm_range_byte byte1 (sti_data[15: 8], clk, wrenb, dout0, dout1, cout0, cout1);
-trigterm_range_byte byte2 (sti_data[23:16], clk, wrenb, dout1, dout2, cout1, cout2);
-trigterm_range_byte byte3 (sti_data[31:24], clk, wrenb, dout2,  dout, cout2,   hit);
+trigterm_range_byte byte0 (sti_tdata[ 7: 0], clk, wrenb,   din, dout0,  1'b1, cout0);
+trigterm_range_byte byte1 (sti_tdata[15: 8], clk, wrenb, dout0, dout1, cout0, cout1);
+trigterm_range_byte byte2 (sti_tdata[23:16], clk, wrenb, dout1, dout2, cout1, cout2);
+trigterm_range_byte byte3 (sti_tdata[31:24], clk, wrenb, dout2,  dout, cout2,   hit);
 endmodule
 
 
 // 128 bits
 module trigterm_range_byte (
-  input  wire  [7:0] sti_data,
+  input  wire  [7:0] sti_tdata,
   input  wire        clk,
   input  wire        wrenb,
   input  wire        din,
@@ -629,19 +632,19 @@ module trigterm_range_byte (
   output wire        cout
 );
 wire [6:0] chain, carry;
-trigterm_range_bit bit0 (sti_data[0], clk, wrenb,      din, chain[0],      cin, carry[0]);
-trigterm_range_bit bit1 (sti_data[1], clk, wrenb, chain[0], chain[1], carry[0], carry[1]);
-trigterm_range_bit bit2 (sti_data[2], clk, wrenb, chain[1], chain[2], carry[1], carry[2]);
-trigterm_range_bit bit3 (sti_data[3], clk, wrenb, chain[2], chain[3], carry[2], carry[3]);
-trigterm_range_bit bit4 (sti_data[4], clk, wrenb, chain[3], chain[4], carry[3], carry[4]);
-trigterm_range_bit bit5 (sti_data[5], clk, wrenb, chain[4], chain[5], carry[4], carry[5]);
-trigterm_range_bit bit6 (sti_data[6], clk, wrenb, chain[5], chain[6], carry[5], carry[6]);
-trigterm_range_bit bit7 (sti_data[7], clk, wrenb, chain[6],     dout, carry[6],     cout);
+trigterm_range_bit bit0 (sti_tdata[0], clk, wrenb,      din, chain[0],      cin, carry[0]);
+trigterm_range_bit bit1 (sti_tdata[1], clk, wrenb, chain[0], chain[1], carry[0], carry[1]);
+trigterm_range_bit bit2 (sti_tdata[2], clk, wrenb, chain[1], chain[2], carry[1], carry[2]);
+trigterm_range_bit bit3 (sti_tdata[3], clk, wrenb, chain[2], chain[3], carry[2], carry[3]);
+trigterm_range_bit bit4 (sti_tdata[4], clk, wrenb, chain[3], chain[4], carry[3], carry[4]);
+trigterm_range_bit bit5 (sti_tdata[5], clk, wrenb, chain[4], chain[5], carry[4], carry[5]);
+trigterm_range_bit bit6 (sti_tdata[6], clk, wrenb, chain[5], chain[6], carry[5], carry[6]);
+trigterm_range_bit bit7 (sti_tdata[7], clk, wrenb, chain[6],     dout, carry[6],     cout);
 endmodule
 
 
 module trigterm_range_bit (
-  input  wire sti_data,
+  input  wire sti_tdata,
   input  wire clk,
   input  wire wrenb,
   input  wire din,
@@ -656,7 +659,7 @@ reg [15:0] mem;
 always @(posedge clk)
 if (wrenb) mem <= {mem, din};
 
-assign hit  = mem[{3'b000, sti_data}];
+assign hit  = mem[{3'b000, sti_tdata}];
 assign dout = mem[15];
 
 assign cout = hit ? cin : din;
@@ -671,35 +674,35 @@ endmodule
 // 256 bits
 //
 module trigterm_edge (
-  input  wire [31:0] sti_data,
-  input  wire [31:0] dly_sti_data,
+  input  wire [31:0] sti_tdata,
+  input  wire [31:0] dly_sti_tdata,
   input  wire        clk,
   input  wire        wrenb,
   input  wire        din,
   output wire        hit
 );
 
-wire [63:0] use_sti_data = {
-  dly_sti_data[31:30], sti_data[31:30],
-  dly_sti_data[29:28], sti_data[29:28],
-  dly_sti_data[27:26], sti_data[27:26],
-  dly_sti_data[25:24], sti_data[25:24],
-  dly_sti_data[23:22], sti_data[23:22],
-  dly_sti_data[21:20], sti_data[21:20],
-  dly_sti_data[19:18], sti_data[19:18],
-  dly_sti_data[17:16], sti_data[17:16],
-  dly_sti_data[15:14], sti_data[15:14],
-  dly_sti_data[13:12], sti_data[13:12],
-  dly_sti_data[11:10], sti_data[11:10],
-  dly_sti_data[ 9: 8], sti_data[ 9: 8],
-  dly_sti_data[ 7: 6], sti_data[ 7: 6],
-  dly_sti_data[ 5: 4], sti_data[ 5: 4],
-  dly_sti_data[ 3: 2], sti_data[ 3: 2],
-  dly_sti_data[ 1: 0], sti_data[ 1: 0]};
+wire [63:0] use_sti_tdata = {
+  dly_sti_tdata[31:30], sti_tdata[31:30],
+  dly_sti_tdata[29:28], sti_tdata[29:28],
+  dly_sti_tdata[27:26], sti_tdata[27:26],
+  dly_sti_tdata[25:24], sti_tdata[25:24],
+  dly_sti_tdata[23:22], sti_tdata[23:22],
+  dly_sti_tdata[21:20], sti_tdata[21:20],
+  dly_sti_tdata[19:18], sti_tdata[19:18],
+  dly_sti_tdata[17:16], sti_tdata[17:16],
+  dly_sti_tdata[15:14], sti_tdata[15:14],
+  dly_sti_tdata[13:12], sti_tdata[13:12],
+  dly_sti_tdata[11:10], sti_tdata[11:10],
+  dly_sti_tdata[ 9: 8], sti_tdata[ 9: 8],
+  dly_sti_tdata[ 7: 6], sti_tdata[ 7: 6],
+  dly_sti_tdata[ 5: 4], sti_tdata[ 5: 4],
+  dly_sti_tdata[ 3: 2], sti_tdata[ 3: 2],
+  dly_sti_tdata[ 1: 0], sti_tdata[ 1: 0]};
 
 wire [7:0] lohit, hihit;
-trigterm_32bit loword (use_sti_data[31: 0], clk, wrenb,    din, doutlo, lohit);
-trigterm_32bit hiword (use_sti_data[63:32], clk, wrenb, doutlo,   dout, hihit);
+trigterm_32bit loword (use_sti_tdata[31: 0], clk, wrenb,    din, doutlo, lohit);
+trigterm_32bit hiword (use_sti_tdata[63:32], clk, wrenb, doutlo,   dout, hihit);
 assign hit = |{hihit,lohit};
 
 endmodule

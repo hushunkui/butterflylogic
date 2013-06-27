@@ -29,10 +29,6 @@
 // Where r is the sampling rate, f is the clock frequency and d is the value
 // programmed into the divider register.
 //
-// As of version 0.6 sampling on an extClock_mode clock is also supported. If extclock_mode
-// is set '1', the extClock_mode clock will be used to sample data. (Divider is
-// ignored for this.)
-//
 //--------------------------------------------------------------------------------
 //
 // 12/29/2010 - Verilog Version + cleanups created by Ian Davis (IED) - mygizmos.org
@@ -45,95 +41,47 @@ module sampler #(
   parameter integer CW = 24   // counter width
 )(
   // system signas
-  input  wire          clk, 		// clock
-  input  wire          rst, 		// reset
+  input  wire          clk,             // clock
+  input  wire          rst,             // reset
   // configuration/control signals
-  input  wire          extClock_mode,	// clock selection
-  input  wire          wrDivider, 	// write divider register
-  input  wire [CW-1:0] config_data, 	// configuration data
+  input  wire          wrDivider,       // write divider register
+  input  wire [32-1:0] cmd_data,        // configuration data
   // input stream
-  input  wire          sti_valid,	// sti_data is valid
-  input  wire [DW-1:0] sti_data, 	// 32 input channels
+  output wire          sti_tready,
+  input  wire          sti_tvalid,
+  input  wire [DW-1:0] sti_tdata ,
   // output stream
-  output reg           sto_valid, 	// new sample ready
-  output reg  [DW-1:0] sto_data, 	// sampled data
-  output reg           ready50
+  input  wire          sto_tready,
+  output wire          sto_tvalid,
+  output wire [DW-1:0] sto_tdata ,
 );
 
-//
-// Registers...
-//
-reg next_sto_valid;
-reg [DW-1:0] next_sto_data;
+wire sti_transfer;
 
-reg [CW-1:0] divider, next_divider; 
-reg [CW-1:0] counter, next_counter;	// Made counter decrementing.  Better synth.
-wire counter_zero = ~|counter;
+reg  [CW-1:0] divider; 
+reg  [CW-1:0] counter;
+wire          sample;
 
+// divider register write access
+always @ (posedge clk, posedge rst)
+if (rst)            divider <= 0;
+else if (wrDivider) divider <= cmd_data[CW-1:0];
 
-//
-// Generate slow sample reference...
-//
-initial
-begin
-  divider = 0;
-  counter = 0;
-  sto_valid = 0;
-  sto_data = 0;
-end
-always @ (posedge clk) 
-begin
-  divider   <= next_divider;
-  counter   <= next_counter;
-  sto_valid <= next_sto_valid;
-  sto_data  <= next_sto_data;
-end
+assign sti_transfer = sti_tvalid & sti_tready;
 
-always @*
-begin
-  next_divider = divider;
-  next_counter = counter;
-  next_sto_valid = 1'b0;
-  next_sto_data = sto_data;
+// count input transfers
+always @ (posedge clk)
+if (rst)                counter <= 0;
+else if (sti_transfer)  counter <= sample ? divider : counter-1'b1;
 
-  if (extClock_mode)
-    begin
-      next_sto_valid = sti_valid;
-      next_sto_data = sti_data;
-    end
-  else if (sti_valid && counter_zero)
-    begin
-      next_sto_valid = 1'b1;
-      next_sto_data = sti_data;
-    end
+// sample when the counter reaches zero
+assign sample = ~|counter;
 
-  //
-  // Manage counter divider for internal clock sampling mode...
-  //
-  if (wrDivider)
-    begin
-      next_divider = config_data[CW-1:0];
-      next_counter = next_divider;
-      next_sto_valid = 1'b0; // reset
-    end
-  else if (sti_valid) 
-    if (counter_zero)
-      next_counter = divider;
-    else next_counter = counter-1'b1;
-end
+// input is ready to receive if sample is not active
+assign sti_tready = sto_tready | ~sample;
 
-
-//
-// Generate ready50 50% duty cycle sample signal...
-//
-always @(posedge clk) 
-begin
-  if (wrDivider)
-    ready50 <= 1'b0; // reset
-  else if (counter_zero)
-    ready50 <= 1'b1;
-  else if (counter == divider[CW-1:1])
-    ready50 <= 1'b0;
-end
+// there is data on the output if sample is active
+assign sto_tvalid = sti_tvalid |  sample;
+assign sto_tdata  = sti_tdata;
 
 endmodule

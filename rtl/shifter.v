@@ -46,13 +46,13 @@ module shifter #(
   // configuration signals
   input  wire [DW-1:0] cfg_mask,
   // input stream
-  input  wire          sti_valid,
-  output wire          sti_ready,
-  input  wire [DW-1:0] sti_data,
+  output wire          sti_tready,
+  input  wire          sti_tvalid,
+  input  wire [DW-1:0] sti_tdata ,
   // output stream
-  output wire          sto_valid,
-  input  wire          sto_ready,
-  output wire [DW-1:0] sto_data
+  input  wire          sto_tready,
+  output wire          sto_tvalid,
+  output wire [DW-1:0] sto_tdata
 );
 
 // number of data procesing layers
@@ -61,12 +61,12 @@ localparam DL = $clog2(DW);
 // input data path signals
 wire sti_transfer;
 
-assign sti_transfer = sti_valid & sti_ready;
+assign sti_transfer = sti_tvalid & sti_tready;
 
 // delay data path signals
-reg  [DL-1:0] [DW-1:0] pipe_data;
-reg  [DL-1:0]          pipe_valid = {DL{1'b0}};
-wire [DL-1:0]          pipe_ready;
+reg  [DL-1:0] [DW-1:0] pipe_tdata;
+reg  [DL-1:0]          pipe_tvalid = {DL{1'b0}};
+wire [DL-1:0]          pipe_tready;
 
 // shifter dynamic control signal
 reg  [DW-1:0] [DL-1:0] shift;
@@ -94,9 +94,9 @@ endfunction
 // control path
 always @ (posedge clk, posedge rst)
 if (rst) begin
-  pipe_valid <= {DL{1'b0}};
+  pipe_tvalid <= {DL{1'b0}};
 end else if (ctl_ena) begin
-  pipe_valid <= {pipe_valid [DL-2:0], sti_valid};
+  pipe_tvalid <= {pipe_tvalid [DL-2:0], sti_tvalid};
 end
 
 // data path
@@ -105,15 +105,15 @@ generate
   for (l=0; l<DL; l=l+1) begin: layer
     for (b=0; b<DW; b=b+1) begin: dbit
       always @ (posedge clk)
-      if (ctl_ena)  pipe_data[l][b] <= shift[b][l] ? pipe_data[l-1][(b+l)%DW] : pipe_data[l-1][b];
+      if (ctl_ena)  pipe_tdata[l][b] <= shift[b][l] ? pipe_tdata[l-1][(b+l)%DW] : pipe_tdata[l-1][b];
     end
   end
 endgenerate
 
 // combinatorial bypass
-assign sto_valid = !ctl_ena ? sti_valid : pipe_valid[DL-1];
-assign sto_data  = !ctl_ena ? sti_data  : pipe_data [DL-1];
+assign sto_tvalid = !ctl_ena ? sti_tvalid : pipe_tvalid[DL-1];
+assign sto_tdata  = !ctl_ena ? sti_tdata  : pipe_tdata [DL-1];
 
-assign sti_ready = !ctl_ena ? sto_ready : pipe_ready[0] | ~pipe_valid[0];
+assign sti_tready = !ctl_ena ? sto_tready : pipe_tready[0] | ~pipe_tvalid[0];
 
 endmodule

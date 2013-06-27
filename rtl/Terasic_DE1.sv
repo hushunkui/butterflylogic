@@ -171,8 +171,8 @@ ctrl #(
   // software reset
   .soft_reset      (soft_reset),
   // input stream
-  .mem_tvalid      (mrd_tvalid), 
-  .mem_tdata       (mrd_tdata ), 
+  .mem_tvalid      (mrd_tvalid),
+  .mem_tdata       (mrd_tdata ),
   .mem_tkeep       (mrd_tkeep ),
   .mem_tready      (mrd_tready),
   // control stream

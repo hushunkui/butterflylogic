@@ -41,20 +41,24 @@ module trigger #(
   // system signals
   input  wire          clk,
   input  wire          rst,
-  // configuration/control signals
+  // configuration
   input  wire    [3:0] wrMask,		// Write trigger mask register
   input  wire    [3:0] wrValue,		// Write trigger value register
   input  wire    [3:0] wrConfig,		// Write trigger config register
-  input  wire   [31:0] config_data,	// Data to write into trigger config regs
+  input  wire   [31:0] cfg_data,	// Data to write into trigger config regs
+  // control signals
   input  wire          arm,
   input  wire          demux_mode,
   // input stream
-  input  wire          sti_valid,
-  input  wire [DW-1:0] sti_data,        // Channel data...
+  input  wire          sti_tready,
+  input  wire          sti_tvalid,
+  input  wire [DW-1:0] sti_tdata ,
   // status
   output reg           capture,		// Store captured data in fifo.
   output wire          run		// Tell controller when trigger hit.
 );
+
+wire sti_transfer = sti_tready & sti_tvalid;
 
 reg [1:0] levelReg = 2'b00;
 
@@ -136,8 +140,8 @@ wire [7:0] wrdata;
 
 always @ (posedge clk)
 begin
-  maskRegister  <= (|wrMask ) ? config_data : maskRegister;
-  valueRegister <= (|wrValue) ? config_data : valueRegister;
+  maskRegister  <= (|wrMask ) ? cfg_data : maskRegister;
+  valueRegister <= (|wrValue) ? cfg_data : valueRegister;
 end
 
 always @ (posedge clk, posedge rst)
@@ -176,14 +180,16 @@ stage stage [3:0] (
   .clk        (clk),
   .rst        (rst),
   // input stream
-  .dataIn     (sti_data),
-  .validIn    (sti_valid), 
+  .sti_tdata  (sti_tdata   ),
+  .sti_tvalid (sti_transfer), 
 //.wrMask     (wrMask),
-//.wrValue    (wrValue), 
+//.wrValue    (wrValue),
+  // configuration 
   .wrenb      (wrenb),
   .din        (wrdata),
   .wrConfig   (wrConfig),
-  .config_data(config_data),
+  .cfg_data   (cfg_data),
+  // control
   .arm        (arm),
   .level      (levelReg),
   .demux_mode (demux_mode),

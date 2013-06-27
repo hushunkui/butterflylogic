@@ -36,8 +36,9 @@
 `timescale 1ns/100ps
 
 module core #(
-  parameter integer SDW = 32,  // sample data width
-  parameter integer MDW = 32   // memory data width
+  parameter integer SDW = 32,    // sample data width
+  parameter integer MDW = 32,    // memory data width
+  parameter integer MKW = MDW/8  // memory keep width
 )(
   // system signals
   input  wire           clk,     // clock
@@ -49,7 +50,6 @@ module core #(
   output wire           cmd_valid_flags,
   // configuration/control outputs
   input  wire           extTriggerIn,
-  output wire           sampleReady50,
   output wire           extTriggerOut,
   output wire           extClock_mode,
   output wire           extTestMode,
@@ -59,39 +59,34 @@ module core #(
   input  wire           sti_clk,
   input  wire [SDW-1:0] sti_data_p,
   input  wire [SDW-1:0] sti_data_n,
-  // output stream
-  output wire [SDW-1:0] stableInput,
-  // memory read interface
-  input  wire           outputBusy,
-  output wire           outputSend,
-  output wire           memoryRead,
   // memory write interface
-  output wire [MDW-1:0] mwr_tdata ,
-  output wire           mwr_tvalid,
-  output wire           mwr_tlast
+  input  wire           sto_tready,
+  output wire           sto_tvalid,
+  output wire           sto_tlast ,
+  output wire [MKW-1:0] sto_tkeep ,
+  output wire [MDW-1:0] sto_tdata
 );
 
 // data stream (sync -> cdc)
-wire           sync_valid;
-wire [SDW-1:0] sync_data;
-wire           sync_ready;
+wire           sync_tready;
+wire           sync_tvalid;
+wire [SDW-1:0] sync_tdata ;
 // data stream (cdc -> sample)
-wire           cdc_valid;
-wire [SDW-1:0] cdc_data;
-wire           cdc_ready;
+wire           cdc_tready;
+wire           cdc_tvalid;
+wire [SDW-1:0] cdc_tdata ;
 // data stream (sample -> trigger, delay)
-wire           sample_valid;
-wire [SDW-1:0] sample_data; 
-//wire           sample_ready;
-// data stream (delay -> allign)
-wire           delay_valid;
-wire [SDW-1:0] delay_data;
+wire           sample_tready;
+wire           sample_tvalid;
+wire [SDW-1:0] sample_tdata ; 
 // data stream (align -> rle)
-wire           align_valid;
-wire [SDW-1:0] align_data;
+wire           align_tready;
+wire           align_tvalid;
+wire [SDW-1:0] align_tdata ;
 // data stream (rle -> controller)
-wire           rle_valid; 
-wire [SDW-1:0] rle_data;
+wire           rle_tready; 
+wire           rle_tvalid; 
+wire [SDW-1:0] rle_tdata ;
 
 
 wire  [3:0] wrtrigmask; 
@@ -193,9 +188,7 @@ flags flags (
   .flags_reg   (flags_reg)
 );
 
-//
 // Capture input relative to sti_clk...
-//
 sync #(
   .DW (SDW)
 ) sync (
@@ -211,14 +204,13 @@ sync #(
   .sti_data_p   (sti_data_p),
   .sti_data_n   (sti_data_n),
   // outputs stream
-  .sto_data     (sync_data),
-  .sto_valid    (sync_valid)
+  .sto_tready   (sync_tready)
+  .sto_tvalid   (sync_tvalid)
+  .sto_tdata    (sync_tdata),
 );
 
-//
 // Transfer from input clock (whatever it may be) to the core clock 
 // (used for everything else, including RLE counts)...
-//
 cdc #(
   .DW  (SDW),
   .FF  (8)
@@ -226,23 +218,18 @@ cdc #(
   // input interface
   .ffi_clk  (sti_clk),
   .ffi_rst  (sti_rst),
-  .ffi_dat  (sync_data),
-  .ffi_vld  (sync_valid),
-  .ffi_rdy  (sync_ready),
+  .ffi_dat  (sync_tdata ),
+  .ffi_vld  (sync_tvalid),
+  .ffi_rdy  (sync_tready),
   // output interface
   .ffo_clk  (clk),
   .ffo_rst  (rst),
-  .ffo_dat  (cdc_data),
-  .ffo_vld  (cdc_valid),
-  .ffo_rdy  (cdc_ready)
+  .ffo_dat  (cdc_tdata ),
+  .ffo_vld  (cdc_tvalid),
+  .ffo_rdy  (cdc_tready)
 );
 
-assign cdc_ready = 1'b1;
-assign stableInput = cdc_data;
-
-//
-// Capture data at programmed intervals...
-//
+// subsampling input stream
 sampler #(
   .DW (SDW)
 ) sampler (
@@ -250,22 +237,19 @@ sampler #(
   .clk           (clk),
   .rst           (rst),
   // sonfiguraation/control signals
-  .extClock_mode (extClock_mode),
-  .wrDivider     (wrDivider),
-  .config_data   (cmd_data[23:0]),
+  .cmd_valid     (wrDivider),
+  .cmd_data      (cmd_data),
   // input stream
-  .sti_valid     (cdc_valid),
-  .sti_data      (cdc_data ),
+  .sti_tready    (cdc_tready),
+  .sti_tvalid    (cdc_tvalid),
+  .sti_tdata     (cdc_tdata ),
   // output stream
-  .sto_valid     (sample_valid),
-  .sto_data      (sample_data ),
-  // ?
-  .ready50       (sampleReady50)
+  .sto_tready    (sample_tready),
+  .sto_tvalid    (sample_tvalid),
+  .sto_tdata     (sample_tdata )
 );
 
-//
 // Evaluate standard triggers...
-//
 trigger #(
   .DW (SDW)
 ) trigger (
@@ -281,16 +265,15 @@ trigger #(
   .arm          (arm_basic),
   .demux_mode   (demux_mode),
   // input stream
-  .sti_valid    (sample_valid),
-  .sti_data     (sample_data),
+  .sti_tready   (sample_tready),
+  .sti_tvalid   (sample_tvalid),
+  .sti_tdata    (sample_tdata ),
   // outputs...
   .run          (run_basic),
   .capture      (capture_basic)
 );
 
-//
 // Evaluate advanced triggers...
-//
 trigger_adv #(
   .DW (SDW)
 ) trigger_adv (
@@ -305,8 +288,9 @@ trigger_adv #(
   .arm           (arm_adv),
   .finish_now    (finish_now),
   // input stream
-  .sti_valid     (sample_valid),
-  .sti_data      (sample_data),
+  .sti_tready    (sample_tready),
+  .sti_tvalid    (sample_tvalid),
+  .sti_tdata     (sample_tdata ),
   // outputs...
   .run           (run_adv),
   .capture       (capture_adv)
@@ -314,45 +298,9 @@ trigger_adv #(
 
 wire capture = capture_basic || capture_adv;
 
-//
-// Delay samples so they're in phase with trigger "capture" outputs.
-//
-delay_fifo #(
-  .DLY (3), // 3 clks to match advanced trigger
-  .DW (SDW)
-) delay_fifo (
-  // system signals
-  .clk        (clk),
-  .rst        (rst),
-  // input stream
-  .sti_valid  (sample_valid),
-  .sti_data   (sample_data),
-  // output stream
-  .sto_valid  (delay_valid),
-  .sto_data   (delay_data)
-);
-
-//
-// Align data so gaps from disabled groups removed...
-//
-data_align data_align (
-  // system signals
-  .clk            (clk),
-  .rst            (rst),
-  // configuration/control signals
-  .disabledGroups (disabledGroups),
-  // input stream
-  .sti_valid      (delay_valid && capture),
-  .sti_data       (delay_data),
-  // output stream
-  .sto_valid      (align_valid),
-  .sto_data       (align_data)
-);
-
-//
+/*
 // Detect duplicate data & insert RLE counts (if enabled)... 
 // Requires client software support to decode.
-//
 rle_enc rle_enc (
   // system signals
   .clk             (clk),
@@ -363,59 +311,35 @@ rle_enc rle_enc (
   .rle_mode        (rle_mode),
   .disabledGroups  (disabledGroups),
   // input stream
-  .sti_valid       (align_valid),
-  .sti_data        (align_data),
-  // outputs...
-  .sto_valid       (rle_valid),
-  .sto_data        (rle_data)
+  .sti_tready      (align_tready),
+  .sti_tvalid      (align_tvalid),
+  .sti_tdata       (align_tdata),
+  // output stream
+  .sto_tready      (rle_tready),
+  .sto_tvalid      (rle_tvalid),
+  .sto_tdata       (rle_tdata)
 );
+*/
 
-//
-// Delay run (trigger) pulse to complensate for 
-// data_align & rle_enc delay...
-//
-pipeline_stall #(
-  .DELAY  (2)
-) dly_arm_reg (
-  .clk     (clk), 
-  .reset   (rst), 
-  .datain  (arm), 
-  .dataout (dly_arm)
-);
-
-pipeline_stall #(
-  .DELAY  (1)
-) dly_run_reg (
-  .clk     (clk), 
-  .reset   (rst), 
-  .datain  (run), 
-  .dataout (dly_run)
-);
-
-//
-// The brain's...  mmm... brains...
-//
-controller controller(
+shifter #(
+  .DW (SDW)
+) shifter (
   // system signals
-  .clk             (clk),
-  .rst             (rst),
-  // 
-  .run             (dly_run),
-  .arm             (dly_arm),
-  // command
-  .cmd_valid       (wrsize),
-  .cmd_data        (cmd_data),
+  .clk            (clk),
+  .rst            (rst),
+  // control signals
+  .ctl_clr        (1'b1),
+  .ctl_ena        (1'b0),
+  // configuration signals
+  .cfg_mask       ({SDW{1'b1}}),
   // input stream
-  .sti_valid       (rle_valid),
-  .sti_data        (rle_data ),
-  // memory read interface
-  .busy            (outputBusy),
-  .send            (outputSend),
-  .memoryRead      (memoryRead),
-  // memory write interface
-  .mwr_tdata       (mwr_tdata ),
-  .mwr_tvalid      (mwr_tvalid),
-  .mwr_tlast       (mwr_tlast )
+  .sti_tvalid     (sample_tvalid),
+  .sti_tvalid     (sample_tvalid),
+  .sti_tdata      (sample_tdata),
+  // output stream
+  .sto_tvalid     (align_tvalid),
+  .sto_tvalid     (align_tvalid),
+  .sto_tdata      (align_tdata)
 );
 
 endmodule

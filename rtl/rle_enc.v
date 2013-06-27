@@ -54,11 +54,13 @@ module rle_enc #(
   input  wire    [1:0] rle_mode,
   input  wire    [3:0] disabledGroups,
   // input stream
-  input  wire [DW-1:0] sti_data,
-  input  wire          sti_valid,
+  output wire          sti_tready,
+  input  wire          sti_tvalid,
+  input  wire [DW-1:0] sti_tdata,
   // output stream
-  output reg  [DW-1:0] sto_data,
-  output reg           sto_valid = 0
+  input  wire          sto_tready,
+  output reg           sto_tvalid = 0,
+  output reg  [DW-1:0] sto_tdata
 );
 
 localparam RLE_COUNT = 1'b1;
@@ -70,10 +72,10 @@ reg         active = 0, next_active;
 reg         mask_flag = 0, next_mask_flag;
 reg   [1:0] mode;
 reg  [30:0] data_mask;
-reg  [30:0] last_data, next_last_data;
-reg         last_valid = 0, next_last_valid;
-reg  [31:0] next_sto_data;
-reg         next_sto_valid;
+reg  [30:0] last_tdata, next_last_tdata;
+reg         last_tvalid = 0, next_last_tvalid;
+reg  [31:0] next_sto_tdata;
+reg         next_sto_tvalid;
 
 reg  [30:0] count = 0, next_count;		// # of times seen same input data
 reg   [8:0] fieldcount = 0, next_fieldcount;	// # times output back-to-back <rle-counts> with no <value>
@@ -86,7 +88,7 @@ wire        count_full = (count==data_mask);
 
 reg         mismatch;
 
-wire [30:0] masked_sti_data = sti_data & data_mask;
+wire [30:0] masked_sti_tdata = sti_tdata & data_mask;
 
 
 // Repeat mode: In <value><rle-count> pairs, a count of 4 means 4 samples.
@@ -133,10 +135,10 @@ begin
   count      <= next_count;
   fieldcount <= next_fieldcount;
   track      <= next_track;
-  sto_data   <= next_sto_data;
-  sto_valid  <= next_sto_valid;
-  last_data  <= next_last_data;
-  last_valid <= next_last_valid;
+  sto_tdata   <= next_sto_tdata;
+  sto_tvalid  <= next_sto_tvalid;
+  last_tdata  <= next_last_tdata;
+  last_tvalid <= next_last_tvalid;
 end
 
 always @*
@@ -144,33 +146,33 @@ begin
   next_active = active | (enable && arm);
   next_mask_flag = mask_flag | (enable && arm); // remains asserted even if rle_enable turned off
 
-  next_sto_data = (mask_flag) ? masked_sti_data : sti_data;
-  next_sto_valid = sti_valid;
-  next_last_data = (sti_valid) ? masked_sti_data : last_data; 
-  next_last_valid = 1'b0;
+  next_sto_tdata = (mask_flag) ? masked_sti_tdata : sti_tdata;
+  next_sto_tvalid = sti_tvalid;
+  next_last_tdata = (sti_tvalid) ? masked_sti_tdata : last_tdata; 
+  next_last_tvalid = 1'b0;
   next_count = count & {31{active}};
   next_fieldcount = fieldcount & {9{active}};
   next_track = track & {2{active}};
 
-  mismatch = |(masked_sti_data^last_data); // detect any difference not masked
+  mismatch = |(masked_sti_tdata^last_tdata); // detect any difference not masked
 
   if (active)
     begin
-      next_sto_valid = 1'b0;
-      next_last_valid = last_valid | sti_valid;
+      next_sto_tvalid = 1'b0;
+      next_last_tvalid = last_tvalid | sti_tvalid;
 
-      if (sti_valid && last_valid)
+      if (sti_tvalid && last_tvalid)
         if (!enable || mismatch || count_full) // if mismatch, or counter full, then output count (if count>1)...
           begin
 	    next_active = enable;
-            next_sto_valid = 1'b1;
-            next_sto_data = {RLE_COUNT,count};
+            next_sto_tvalid = 1'b1;
+            next_sto_tdata = {RLE_COUNT,count};
             case (mode)
-              2'h0 : next_sto_data = {RLE_COUNT,count[6:0]};
-              2'h1 : next_sto_data = {RLE_COUNT,count[14:0]};
-              2'h2 : next_sto_data = {RLE_COUNT,count[22:0]};
+              2'h0 : next_sto_tdata = {RLE_COUNT,count[6:0]};
+              2'h1 : next_sto_tdata = {RLE_COUNT,count[14:0]};
+              2'h2 : next_sto_tdata = {RLE_COUNT,count[22:0]};
             endcase
-            if (!count_gt_one) next_sto_data = last_data;
+            if (!count_gt_one) next_sto_tdata = last_tdata;
 
 	    next_fieldcount = fieldcount+1'b1; // inc # times output rle-counts
 
@@ -185,7 +187,7 @@ begin
 	    if (count_zero) // write initial data if count zero
 	      begin
 		next_fieldcount = 0;
-		next_sto_valid = 1'b1;
+		next_sto_tvalid = 1'b1;
 	      end
 	    if (rle_repeat_mode && count_zero) next_count = 2;
 	    next_track = {|track,1'b1};

@@ -1,6 +1,10 @@
-//--------------------------------------------------------------------------------
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2013 Iztok Jeras
+// organize data into bytes
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+//
+//////////////////////////////////////////////////////////////////////////////
 // 
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,7 +20,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
+//////////////////////////////////////////////////////////////////////////////
 
 // from the mask you know how far each bit should be moved, and from this distance
 // you pick the bit describing the distance of the current shift, so construct a
@@ -34,85 +38,34 @@
 
 `timescale 1ns/1ps
 
-module shifter #(
-  parameter integer DW = 32
+module byter #(
+  parameter integer SDW = 32,
+  parameter integer SKW = SDW/8
 )(
   // system signals
-  input  wire          clk,
-  input  wire          rst,
+  input  wire           clk,
+  input  wire           rst,
   // control signals
-  input  wire          ctl_clr,
-  input  wire          ctl_ena,
+  input  wire           ctl_clr,
+  input  wire           ctl_ena,
   // configuration signals
-  input  wire [DW-1:0] cfg_mask,
+  input  wire [SDW-1:0] cfg_mask,
   // input stream
-  output wire          sti_tready,
-  input  wire          sti_tvalid,
-  input  wire [DW-1:0] sti_tdata ,
+  output wire           sti_tready,
+  input  wire           sti_tvalid,
+  input  wire [SDW-1:0] sti_tdata ,
   // output stream
-  input  wire          sto_tready,
-  output wire          sto_tvalid,
-  output wire [DW-1:0] sto_tdata
+  input  wire           sto_tready,
+  output wire           sto_tvalid,
+  output wire           sto_tlast ,
+  output wire [SKW-1:0] sto_tkeep
+  output wire [SDW-1:0] sto_tdata
 );
 
-// number of data procesing layers
-localparam DL = $clog2(DW);
-
-// input data path signals
-wire sti_transfer;
-
-assign sti_transfer = sti_tvalid & sti_tready;
-
-// delay data path signals
-reg  [DL-1:0] [DW-1:0] pipe_tdata;
-reg  [DL-1:0]          pipe_tvalid = {DL{1'b0}};
-wire [DL-1:0]          pipe_tready;
-
-// shifter dynamic control signal
-reg  [DW-1:0] [DL-1:0] shift;
-
-// conversion from mask to shifts
-function [DW-1:0] [DL-1:0] mask2shift (input [DW-1:0] mask);
-  integer l,b;
-begin
-  for (l=0; l<DL; l=l+1) begin
-    for (b=0; b<DW; b=b+1) begin
-      
-    end
-  end
-end
-endfunction
-
-// rotate right
-//function [DW-1:0] rtr (
-//  input [DW-1:0] data,
-//  input integer len
-//);
-//  rtr = {data [DW-len-1:0], data [DW-1:DW-len]};
-//endfunction
-
-// control path
-always @ (posedge clk, posedge rst)
-if (rst) begin
-  pipe_tvalid <= {DL{1'b0}};
-end else if (ctl_ena) begin
-  pipe_tvalid <= {pipe_tvalid [DL-2:0], sti_tvalid};
-end
-
-// data path
-genvar l, b;
-generate
-  for (l=0; l<DL; l=l+1) begin: layer
-    for (b=0; b<DW; b=b+1) begin: dbit
-      always @ (posedge clk)
-      if (ctl_ena)  pipe_tdata[l][b] <= shift[b][l] ? pipe_tdata[l-1][(b+l)%DW] : pipe_tdata[l-1][b];
-    end
-  end
-endgenerate
-
 // combinatorial bypass
-assign sto_tvalid = !ctl_ena ? sti_tvalid : pipe_tvalid[DL-1];
-assign sto_tdata  = !ctl_ena ? sti_tdata  : pipe_tdata [DL-1];
+assign sto_tvalid = sti_tvalid;
+assign sto_tvalid = sti_tlast ;
+assign sto_tdata  = sti_tdata ;
 
 assign sti_tready = !ctl_ena ? sto_tready : pipe_tready[0] | ~pipe_tvalid[0];
 

@@ -28,10 +28,10 @@
 // eliminate any disabled groups. ie:
 //
 //   Channels 0,1,2 are disabled:  
-//     sto_data[7:0] = channel3     (sti_data[31:24])
+//     sto_tdata[7:0] = channel3     (sti_tdata[31:24])
 //
 //   Channels 1,2 are disabled:    
-//     sto_data[15:0] = {channel3,channel0}   (sti_data[31:24],sti_data[7:0])
+//     sto_tdata[15:0] = {channel3,channel0}   (sti_tdata[31:24],sti_tdata[7:0])
 //
 // Compacting the data like this allows for easier RLE & filling of SRAM.
 //
@@ -49,11 +49,13 @@ module data_align #(
   // configuration/control signals
   input  wire  [3:0] disabledGroups,
   // input stream
-  input  wire        sti_valid,
-  input  wire [31:0] sti_data,
+  output wire        sti_tready,
+  input  wire        sti_tvalid,
+  input  wire [31:0] sti_tdata,
   // output stream
-  output reg         sto_valid,
-  output reg  [31:0] sto_data
+  input  wire        sto_tready,
+  output reg         sto_tvalid,
+  output reg  [31:0] sto_tdata
 );
 
 //
@@ -69,21 +71,21 @@ reg       insel2;
 always @ (posedge clk)
 begin
   case (insel0[1:0])
-    2'h3    : sto_data[ 7: 0] <= sti_data[31:24];
-    2'h2    : sto_data[ 7: 0] <= sti_data[23:16];
-    2'h1    : sto_data[ 7: 0] <= sti_data[15: 8];
-    default : sto_data[ 7: 0] <= sti_data[ 7: 0];
+    2'h3    : sto_tdata[ 7: 0] <= sti_tdata[31:24];
+    2'h2    : sto_tdata[ 7: 0] <= sti_tdata[23:16];
+    2'h1    : sto_tdata[ 7: 0] <= sti_tdata[15: 8];
+    default : sto_tdata[ 7: 0] <= sti_tdata[ 7: 0];
   endcase
   case (insel1[1:0])
-    2'h2    : sto_data[15: 8] <= sti_data[31:24];
-    2'h1    : sto_data[15: 8] <= sti_data[23:16];
-    default : sto_data[15: 8] <= sti_data[15: 8];
+    2'h2    : sto_tdata[15: 8] <= sti_tdata[31:24];
+    2'h1    : sto_tdata[15: 8] <= sti_tdata[23:16];
+    default : sto_tdata[15: 8] <= sti_tdata[15: 8];
   endcase
   case (insel2)
-    1'b1    : sto_data[23:16] <= sti_data[31:24];
-    default : sto_data[23:16] <= sti_data[23:16];
+    1'b1    : sto_tdata[23:16] <= sti_tdata[31:24];
+    default : sto_tdata[23:16] <= sti_tdata[23:16];
   endcase
-              sto_data[31:24] <= sti_data[31:24];
+              sto_tdata[31:24] <= sti_tdata[31:24];
 end
 
 //
@@ -98,7 +100,7 @@ end
 // Each "insel" signal controls the select for an output mux.
 //
 // ie: insel0 controls what is -output- on bits[7:0].   
-//     Thus, if insel0 equal 2, sto_data[7:0] = sti_data[23:16]
+//     Thus, if insel0 equal 2, sto_tdata[7:0] = sti_tdata[23:16]
 //
 always @(posedge clk) 
 begin
@@ -124,7 +126,7 @@ begin
 end
 
 always @(posedge clk, posedge rst) 
-if (rst)  sto_valid <= 1'b0;
-else      sto_valid <= sti_valid;
+if (rst)  sto_tvalid <= 1'b0;
+else      sto_tvalid <= sti_tvalid;
 
 endmodule

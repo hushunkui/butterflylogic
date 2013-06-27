@@ -102,7 +102,7 @@ end
 always @(posedge clk)
 begin
   counter <= next_counter;
-  send    <= next_send;
+  send    <= next_send; 
 end
 
 // FSM to control the controller action

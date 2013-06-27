@@ -47,23 +47,26 @@
 
 `timescale 1ns/100ps
 
-module stage(
+module stage #(
+  parameter integer SDW = 32  // sample data width
+)(
   // system signals
-  input  wire        clk,
-  input  wire        rst,
+  input  wire           clk,
+  input  wire           rst,
   // input stream
-  input  wire        validIn,
-  input  wire [31:0] dataIn,		// Channel data...
-  //
-  input  wire        wrenb,			// LUT update write enb
-  input  wire  [7:0] din,		// LUT update data.  All 8 LUT's are updated simultaneously.
-  input  wire        wrConfig,			// Write the trigger config register
-  input  wire [31:0] config_data,	// Data to write into trigger config regs
-  input  wire        arm,
-  input  wire        demux_mode,
-  input  wire  [1:0] level,
-  output reg         run,
-  output reg         match
+  input  wire           sti_tvalid,
+  input  wire [SDW-1:0] sti_tdata ,
+  // configuration
+  input  wire           wrenb,        // LUT update write enb
+  input  wire     [7:0] din,          // LUT update data.  All 8 LUT's are updated simultaneously.
+  input  wire           wrConfig,     // Write the trigger config register
+  input  wire    [31:0] cfg_data,  // Data to write into trigger config regs
+  // control
+  input  wire           arm,
+  input  wire           demux_mode,
+  input  wire     [1:0] level,
+  output reg            run,
+  output reg            match
 );
 
 localparam TRUE = 1'b1;
@@ -72,11 +75,11 @@ localparam FALSE = 1'b0;
 //
 // Registers...
 //
-reg [27:0] configRegister;
-reg [15:0] counter, next_counter; 
+reg    [27:0] configRegister;
+reg    [15:0] counter, next_counter; 
 
-reg [31:0] shiftRegister;
-reg match32Register;
+reg [SDW-1:0] shiftRegister;
+reg           match32Register;
 
 reg next_run;
 reg next_match;
@@ -94,12 +97,12 @@ wire [15:0] cfgDelay   = configRegister[15:0];
 // Handle mask, value & config register write requests
 //
 always @ (posedge clk) 
-configRegister <= (wrConfig) ? config_data[27:0] : configRegister;
+if (wrConfig) configRegister <= cfg_data[27:0];
 
 //
-// Use shift register or dataIn depending on configuration...
+// Use shift register or sti_tdata depending on configuration...
 //
-wire [31:0] testValue = (cfgSerial) ? shiftRegister : dataIn;
+wire [SDW-1:0] testValue = (cfgSerial) ? shiftRegister : sti_tdata;
 
 //
 // Do LUT table based comparison...
@@ -127,13 +130,13 @@ else            match32Register <= matchH16 & matchL16;
 //
 // Select serial channel based on cfgChannel...
 //
-wire serialChannelL16 = dataIn[{1'b0,cfgChannel[3:0]}];
-wire serialChannelH16 = dataIn[{1'b1,cfgChannel[3:0]}];
+wire serialChannelL16 = sti_tdata[{1'b0,cfgChannel[3:0]}];
+wire serialChannelH16 = sti_tdata[{1'b1,cfgChannel[3:0]}];
 
 //
-// Shift in bit from selected channel whenever dataIn is ready...
+// Shift in bit from selected channel whenever sti_tdata is ready...
 always @(posedge clk) 
-if (validIn) begin
+if (sti_tvalid) begin
   // in demux mode two bits come in per sample
   if (demux_mode) shiftRegister <= {shiftRegister,                   serialChannelH16,  serialChannelL16};
   else            shiftRegister <= {shiftRegister, (cfgChannel[4]) ? serialChannelH16 : serialChannelL16};
@@ -185,7 +188,7 @@ begin
 
     MATCHED : 
       begin
-        if (validIn)
+        if (sti_tvalid)
 	  begin
             next_counter = counter-1'b1;
             if (~|counter)
