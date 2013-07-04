@@ -51,7 +51,11 @@ else
 OPT = -g2012 -I rtl -D ICARUS
 endif
 
-all: shifter adv rle top_spi top_uart
+all: sampler shifter adv rle top_spi top_uart
+
+sampler: $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v
+	iverilog $(OPT) $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v -o sampler.out
+	vvp -n -l sampler.log sampler.out
 
 shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out

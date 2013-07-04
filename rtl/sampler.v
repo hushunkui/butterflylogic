@@ -1,8 +1,13 @@
-//--------------------------------------------------------------------------------
-// sampler.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
+// UART receiver
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+// 12/29/2010 - Verilog Version + cleanups created by Ian Davis (IED) - mygizmos.org
 // Copyright (C) 2006 Michael Poppitz
-// 
+//
+//////////////////////////////////////////////////////////////////////////////
+//
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation; either version 2 of the License, or (at
@@ -17,9 +22,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
+//////////////////////////////////////////////////////////////////////////////
 //
 // Produces samples from input applying a programmable divider to the clock.
 // Sampling rate can be calculated by:
@@ -27,61 +30,113 @@
 //     r = f / (d + 1)
 //
 // Where r is the sampling rate, f is the clock frequency and d is the value
-// programmed into the divider register.
+// programmed into the cfg_div register.
 //
-//--------------------------------------------------------------------------------
-//
-// 12/29/2010 - Verilog Version + cleanups created by Ian Davis (IED) - mygizmos.org
-// 
-
-`timescale 1ns/100ps
+//////////////////////////////////////////////////////////////////////////////
 
 module sampler #(
-  parameter integer DW = 32,  // data width
-  parameter integer CW = 24   // counter width
+  parameter integer SDW = 32,  // sample data    width
+  parameter integer SCW = 32,  // sample counter width
+  parameter integer SNW = 32   // sample number  width
 )(
   // system signas
-  input  wire          clk,             // clock
-  input  wire          rst,             // reset
-  // configuration/control signals
-  input  wire          wrDivider,       // write divider register
-  input  wire [32-1:0] cmd_data,        // configuration data
+  input  wire           clk,          // clock
+  input  wire           rst,          // reset
+
+  // configuration
+  input  wire [SCW-1:0] cfg_div,      // sample data ratio
+  input  wire [SNW-1:0] cfg_num,      // sample data number
+  // control signals
+  input  wire           ctl_st1,      // start data stream
+  input  wire           ctl_st0,      // stop  data stream
+  // status signals
+  output reg            sts_run,      // stream run status  
+
   // input stream
-  output wire          sti_tready,
-  input  wire          sti_tvalid,
-  input  wire [DW-1:0] sti_tdata ,
+  output wire           sti_tready ,
+  input  wire           sti_tvalid ,
+  input  wire           sti_trigger,
+  input  wire [SDW-1:0] sti_tdata  ,
   // output stream
-  input  wire          sto_tready,
-  output wire          sto_tvalid,
-  output wire [DW-1:0] sto_tdata ,
+  input  wire           sto_tready ,
+  output wire           sto_tvalid ,
+  output wire           sto_tlast  ,
+  output reg            sto_trigger,
+  output wire [SDW-1:0] sto_tdata
 );
 
+//////////////////////////////////////////////////////////////////////////////
+// local signals
+//////////////////////////////////////////////////////////////////////////////
+
+// stream transfer signal
 wire sti_transfer;
+wire sto_transfer;
 
-reg  [CW-1:0] divider; 
-reg  [CW-1:0] counter;
-wire          sample;
+// subsampling related signals
+reg  [SCW-1:0] cnt_div;  // counter for sample divider
+reg  [SNW-1:0] cnt_num;  // counter for sample number
+wire           nul_div;  // counter for sample divider reached zero
+wire           nul_num;  // counter for sample number  reached zero
+reg            stb    ;  // strobe
 
-// divider register write access
-always @ (posedge clk, posedge rst)
-if (rst)            divider <= 0;
-else if (wrDivider) divider <= cmd_data[CW-1:0];
+// delayed trigger
+reg dly_trigger;
 
+//////////////////////////////////////////////////////////////////////////////
+// sample divider
+//////////////////////////////////////////////////////////////////////////////
+
+// input stream transfer signal
 assign sti_transfer = sti_tvalid & sti_tready;
 
-// count input transfers
-always @ (posedge clk)
-if (rst)                counter <= 0;
-else if (sti_transfer)  counter <= sample ? divider : counter-1'b1;
+// sample divider counter is decremented on each input transfer
+always @ (posedge clk, posedge rst)
+if (rst)                cnt_div <= 'd0;
+else if (sti_transfer)  cnt_div <= nul_div ? cfg_div : cnt_div - 'b1;
 
-// sample when the counter reaches zero
-assign sample = ~|counter;
+assign nul_div = ~|cnt_div;
 
-// input is ready to receive if sample is not active
-assign sti_tready = sto_tready | ~sample;
+// input stream transfer signal
+assign sto_transfer = sto_tvalid & sto_tready;
 
-// there is data on the output if sample is active
-assign sto_tvalid = sti_tvalid |  sample;
-assign sto_tdata  = sti_tdata;
+// strobe sample when the cnt reaches zero, and stream is enabled
+always @ (posedge clk, posedge rst)
+if (rst)                stb <= 'd0;
+else if (sti_transfer)  stb <= nul_div & sts_run;
+
+//////////////////////////////////////////////////////////////////////////////
+// sample number
+//////////////////////////////////////////////////////////////////////////////
+
+// sample number counter is decremented on each output transfer
+always @ (posedge clk, posedge rst)
+if (rst)                cnt_num <= 'd0;
+else if (sto_transfer)  cnt_num <= nul_num ? cfg_num : cnt_num - 'b1;
+
+assign nul_num = ~|cnt_num;
+
+//////////////////////////////////////////////////////////////////////////////
+// trigger
+//////////////////////////////////////////////////////////////////////////////
+
+always @ (posedge clk, posedge rst)
+if (rst)                  sto_trigger <= 1'b0;
+else begin
+  if      (sti_transfer)  sto_trigger <= sti_trigger;
+  else if (sto_transfer)  sto_trigger <= 1'b0;
+end
+
+//////////////////////////////////////////////////////////////////////////////
+// stream outputs
+//////////////////////////////////////////////////////////////////////////////
+
+// input is ready to receive if strobe is not active
+assign sti_tready  = sto_tready  | ~stb;
+
+// there is data on the output if strobe is active
+assign sto_tvalid  = sti_tvalid  |  stb;
+assign sto_tlast   = ~sts_run;
+assign sto_tdata   = sti_tdata;
 
 endmodule

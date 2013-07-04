@@ -1,8 +1,11 @@
-//--------------------------------------------------------------------------------
-// Logic_Sniffer.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2006 Michael Poppitz
-// 
+// Logic Analyzer implemented on the "Terasic DE1" demo board
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+//
+//////////////////////////////////////////////////////////////////////////////
+//
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation; either version 2 of the License, or (at
@@ -17,24 +20,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
-//
-// Logic Analyzer top level module. It connects the core with the hardware
-// dependend IO modules and defines all inputs and outputs that represent
-// phyisical pins of the fpga.
-//
-// It defines two constants FREQ and RATE. The first is the clock frequency 
-// used for receiver and transmitter for generating the proper baud rate.
-// The second defines the speed at which to operate the serial port.
-//
-//--------------------------------------------------------------------------------
-//
-// 12/29/2010 - Verilog Version + cleanups created by Ian Davis (IED) - mygizmos.org
-//
-
-`timescale 1ns/100ps
+//////////////////////////////////////////////////////////////////////////////
 
 module Terasic_DE1 #(
   // logic analyzer parameters
@@ -92,6 +78,15 @@ assign sys_clk = clk;
 always @ (posedge clk, posedge rst)
 if (rst) sys_rst <= 1'b1;
 else     sys_rst <= 1'b0;
+
+// reset resynchronizer
+reg  [1:0] rst_syn;
+wire       sti_rst;
+
+always @ (posedge sti_clk)
+rst_syn <= [rst_syn[0], rst];
+
+assign sti_rst = rst_syn[1];
 
 //--------------------------------------------------------------------------------
 // IO
@@ -208,7 +203,6 @@ core #(
   // outputs...
   .extTriggerIn    (extTriggerIn),
   .sampleReady50   (),
-  .stableInput     (stableInput),
   .extTriggerOut   (extTriggerOut),
   .extClock_mode   (extClock_mode),
   .extTestMode     (extTestMode),
