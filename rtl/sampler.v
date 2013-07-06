@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-// UART receiver
+// sampler
 //
 // Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
 // 12/29/2010 - Verilog Version + cleanups created by Ian Davis (IED) - mygizmos.org
@@ -106,7 +106,7 @@ if (rst)                stb <= 'd0;
 else if (sti_transfer)  stb <= nul_div & sts_run;
 
 //////////////////////////////////////////////////////////////////////////////
-// sample number
+// sample number and run status
 //////////////////////////////////////////////////////////////////////////////
 
 // sample number counter is decremented on each output transfer
@@ -115,6 +115,15 @@ if (rst)                cnt_num <= 'd0;
 else if (sto_transfer)  cnt_num <= nul_num ? cfg_num : cnt_num - 'b1;
 
 assign nul_num = ~|cnt_num;
+
+// run status
+always @ (posedge clk, posedge rst)
+if (rst)                 sts_run <= 0;
+else begin
+  if (ctl_st1)           sts_run <= 1;
+  else if (ctl_st0)      sts_run <= 0;
+  else if (sto_transfer) sts_run <= ~nul_num;
+end
 
 //////////////////////////////////////////////////////////////////////////////
 // trigger

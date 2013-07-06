@@ -1,3 +1,27 @@
+//////////////////////////////////////////////////////////////////////////////
+//
+// testbench: sampler
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+//
+//////////////////////////////////////////////////////////////////////////////
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or (at
+// your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
+//
+//////////////////////////////////////////////////////////////////////////////
+
 `timescale 1ns/1ps
 
 module tb_sampler #(
@@ -52,8 +76,10 @@ fork
     // reset sequence
     repeat (2) @ (posedge clk);
     rst = 1'b0;
-    // bypass test
-    test_bypass;
+
+    // list stream tests
+    test_rate (0, 4, 8);
+
     repeat (2) @ (posedge clk);
     // report test status
     if (error)  $display ("FAILURE: there were %d errors during simulation.", error);
@@ -72,26 +98,31 @@ join
 end
 
 
-task test_bypass;
+task test_rate (
+  input int div,
+  input int num,
+  input int len
+);
 begin
-  cfg_div = 0;
-  repeat (2) @ (posedge clk);
+  cfg_div = div;
+  cfg_num = num;
+  repeat (1) @ (posedge clk);
   fork
     // source sequence
     begin
-      for (src_i=0; src_i<16; src_i++) begin
+      for (src_i=0; src_i<len; src_i++) begin
         src.trn (src_i);
       end
     end
     // drain sequence
     begin
-      for (drn_i=0; drn_i<16; drn_i++) begin
+      for (drn_i=0; drn_i<len; drn_i+=1+div) begin
         drn.trn (data); if (data != drn_i)  error++;
       end
     end
   join
 end
-endtask: test_bypass
+endtask: test_rate
 
 ////////////////////////////////////////////////////////////////////////////////
 // module instances

@@ -43,18 +43,15 @@ module core #(
   // system signals
   input  wire           clk,     // clock
   input  wire           rst,     // reset
+
   // configuration/control inputs
   input  wire     [7:0] cmd_code,       // Configuration command from serial/SPI interface
   input  wire    [31:0] cmd_data,
   input  wire           cmd_valid,      // cmd_code & cmd_data valid
-  output wire           cmd_valid_flags,
-  // configuration/control outputs
-  input  wire           extTriggerIn,
-  output wire           extTriggerOut,
-  output wire           extClock_mode,
-  output wire           extTestMode,
-  output reg            indicator_arm,
-  output reg            indicator_trg,
+  // status
+  output reg            ind_arm,
+  output reg            ind_trg,
+
   // input stream
   input  wire           sti_clk,
   input  wire           sti_rst,
@@ -101,17 +98,17 @@ wire [SDW-1:0] shifter_tdata  ;
 
 // indicators can be connected to LED
 always @ (posedge clk, posedge rst)
-if (rst)        indicator_arm <= 1'b0;
+if (rst)        ind_arm <= 1'b0;
 else begin
-  if      (arm) indicator_arm <= 1'b1;
-  else if (run) indicator_arm <= 1'b0;
+  if      (arm) ind_arm <= 1'b1;
+  else if (run) ind_arm <= 1'b0;
 end
 
 always @(posedge clk, posedge rst)
-if (rst)        indicator_trg <= 1'b0;
+if (rst)        ind_trg <= 1'b0;
 else begin
-  if      (run) indicator_trg <= 1'b1;
-  else if (arm) indicator_trg <= 1'b0;
+  if      (run) ind_trg <= 1'b1;
+  else if (arm) ind_trg <= 1'b0;
 end
 
 // register set
@@ -159,9 +156,9 @@ cdc #(
 );
 
 // subsampling input stream
-sampler #(
-  .DW (SDW)
-) sampler (
+filter #(
+  .SDW (1+SDW)
+) filter (
   // system signals
   .clk           (clk),
   .rst           (rst),
@@ -172,8 +169,33 @@ sampler #(
   // input stream
   .sti_tready    (cdc_tready ),
   .sti_tvalid    (cdc_tvalid ),
-  .sti_trigger   (cdc_trigger),
-  .sti_tdata     (cdc_tdata  ),
+  .sti_tdata    ({cdc_trigger,
+                  cdc_tdata  }),
+  // output stream
+  .sto_tready    (filter_tready ),
+  .sto_tvalid    (filter_tvalid ),
+  .sto_tdata    ({filter_trigger,
+                  filter_tdata  })
+);
+
+// subsampling input stream
+sampler #(
+  .SDW (SDW),
+  .SCW (32),
+  .SNW (32)
+) sampler (
+  // system signals
+  .clk           (clk),
+  .rst           (rst),
+  // configuraation
+  .cfg_div       (cfg_div)
+  // control
+  .ctl_run       (ctl_run),
+  // input stream
+  .sti_tready    (filter_tready ),
+  .sti_tvalid    (filter_tvalid ),
+  .sti_trigger   (filter_trigger),
+  .sti_tdata     (filter_tdata  ),
   // output stream
   .sto_tready    (sample_tready ),
   .sto_tvalid    (sample_tvalid ),
