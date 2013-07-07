@@ -33,11 +33,22 @@
 // programmed into the cfg_div register.
 //
 //////////////////////////////////////////////////////////////////////////////
+//
+// In addition to input events one internal event is generated. This is the
+// subsampling counter/divider reaching zero. This event is not prapagated to
+// the output.
+//
+// There is an event mask available, defining which events can request a
+// sample to be transferred from the input to the output. The MSB in this
+// mask is alligned with the divider zero event. Other mask bits allign with
+// input events.
+//
+//////////////////////////////////////////////////////////////////////////////
 
 module sampler #(
   parameter integer SDW = 32,  // sample data    width
   parameter integer SCW = 32,  // sample counter width
-  parameter integer SNW = 32   // sample number  width
+  parameter integer SEW = 1    // sample event   width   
 )(
   // system signas
   input  wire           clk,          // clock
@@ -45,24 +56,18 @@ module sampler #(
 
   // configuration
   input  wire [SCW-1:0] cfg_div,      // sample data ratio
-  input  wire [SNW-1:0] cfg_num,      // sample data number
-  // control signals
-  input  wire           ctl_st1,      // start data stream
-  input  wire           ctl_st0,      // stop  data stream
-  // status signals
-  output reg            sts_run,      // stream run status  
+  input  wire [SEW-0:0] cfg_evt_smp,  // event sample mask
 
   // input stream
-  output wire           sti_tready ,
-  input  wire           sti_tvalid ,
-  input  wire           sti_trigger,
-  input  wire [SDW-1:0] sti_tdata  ,
+  output wire           sti_tready,
+  input  wire           sti_tvalid,
+  input  wire [SEW-1:0] sti_tevent,
+  input  wire [SDW-1:0] sti_tdata ,
   // output stream
-  input  wire           sto_tready ,
-  output wire           sto_tvalid ,
-  output wire           sto_tlast  ,
-  output reg            sto_trigger,
-  output wire [SDW-1:0] sto_tdata
+  input  wire           sto_tready,
+  output reg            sto_tvalid,
+  output reg  [SEW-1:0] sto_tevent,
+  output reg  [SDW-1:0] sto_tdata
 );
 
 //////////////////////////////////////////////////////////////////////////////
@@ -74,14 +79,9 @@ wire sti_transfer;
 wire sto_transfer;
 
 // subsampling related signals
-reg  [SCW-1:0] cnt_div;  // counter for sample divider
-reg  [SNW-1:0] cnt_num;  // counter for sample number
-wire           nul_div;  // counter for sample divider reached zero
-wire           nul_num;  // counter for sample number  reached zero
-reg            stb    ;  // strobe
-
-// delayed trigger
-reg dly_trigger;
+reg  [SCW-1:0] cnt_val;  // counter for sample divider
+wire           cnt_nul;  // counter for sample divider reached zero
+wire           smp;  // sampling event
 
 //////////////////////////////////////////////////////////////////////////////
 // sample divider
@@ -92,60 +92,36 @@ assign sti_transfer = sti_tvalid & sti_tready;
 
 // sample divider counter is decremented on each input transfer
 always @ (posedge clk, posedge rst)
-if (rst)                cnt_div <= 'd0;
-else if (sti_transfer)  cnt_div <= nul_div ? cfg_div : cnt_div - 'b1;
+if (rst)                cnt_val <= 'd0;
+else if (sti_transfer)  cnt_val <= cnt_nul ? cfg_div : cnt_val - 'b1;
 
-assign nul_div = ~|cnt_div;
+assign cnt_nul = ~|cnt_val;
 
-// input stream transfer signal
-assign sto_transfer = sto_tvalid & sto_tready;
-
-// strobe sample when the cnt reaches zero, and stream is enabled
-always @ (posedge clk, posedge rst)
-if (rst)                stb <= 'd0;
-else if (sti_transfer)  stb <= nul_div & sts_run;
-
-//////////////////////////////////////////////////////////////////////////////
-// sample number and run status
-//////////////////////////////////////////////////////////////////////////////
-
-// sample number counter is decremented on each output transfer
-always @ (posedge clk, posedge rst)
-if (rst)                cnt_num <= 'd0;
-else if (sto_transfer)  cnt_num <= nul_num ? cfg_num : cnt_num - 'b1;
-
-assign nul_num = ~|cnt_num;
-
-// run status
-always @ (posedge clk, posedge rst)
-if (rst)                 sts_run <= 0;
-else begin
-  if (ctl_st1)           sts_run <= 1;
-  else if (ctl_st0)      sts_run <= 0;
-  else if (sto_transfer) sts_run <= ~nul_num;
-end
-
-//////////////////////////////////////////////////////////////////////////////
-// trigger
-//////////////////////////////////////////////////////////////////////////////
-
-always @ (posedge clk, posedge rst)
-if (rst)                  sto_trigger <= 1'b0;
-else begin
-  if      (sti_transfer)  sto_trigger <= sti_trigger;
-  else if (sto_transfer)  sto_trigger <= 1'b0;
-end
+assign smp = |(cfg_evt_smp & {cnt_nul, sti_tevent});
 
 //////////////////////////////////////////////////////////////////////////////
 // stream outputs
 //////////////////////////////////////////////////////////////////////////////
 
 // input is ready to receive if strobe is not active
-assign sti_tready  = sto_tready  | ~stb;
+assign sti_tready = sto_tready | ~sto_tvalid;
 
 // there is data on the output if strobe is active
-assign sto_tvalid  = sti_tvalid  |  stb;
-assign sto_tlast   = ~sts_run;
-assign sto_tdata   = sti_tdata;
+always @ (posedge clk, posedge rst)
+if (rst) sto_tvalid <= 1'b0;
+else     sto_tvalid <= sti_tvalid & smp;
+
+// event stream
+always @ (posedge clk)
+if (sti_transfer) begin
+  if (smp)  sto_tevent <= sti_tevent;
+  else      sto_tevent <= sti_tevent | sto_tevent;
+end
+
+// data stream
+always @ (posedge clk)
+if (sti_transfer) begin
+  if (smp)  sto_tdata <= sti_tdata;
+end
 
 endmodule

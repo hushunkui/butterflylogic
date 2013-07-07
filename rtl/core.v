@@ -68,21 +68,25 @@ module core #(
 );
 
 // data stream (cdc -> filter)
-wire           cdc_tready ;
-wire           cdc_tvalid ;
-wire           cdc_trigger;
-wire [SDW-1:0] cdc_tdata  ;
+wire           cdc_tready;
+wire           cdc_tvalid;
+wire [SEW-1:0] cdc_tevent;
+wire [SDW-1:0] cdc_tdata ;
 // data stream (filter -> sample)
-wire           filter_tready ;
-wire           filter_tvalid ;
-wire           filter_trigger;
-wire [SDW-1:0] filter_tdata  ;
-// data stream (sample -> trigger)
-wire           sample_tready ;
-wire           sample_tvalid ;
-wire           sample_trigger;
-wire           sample_tlast  ;
-wire [SDW-1:0] sample_tdata  ;
+wire           filter_tready;
+wire           filter_tvalid;
+wire [SEW-1:0] filter_tevent;
+wire [SDW-1:0] filter_tdata ;
+// data stream (sample -> counter)
+wire           sample_tready;
+wire           sample_tvalid;
+wire [SEW-1:0] sample_tevent;
+wire [SDW-1:0] sample_tdata ;
+// data stream (counter -> trigger)
+wire           counter_tready;
+wire           counter_tvalid;
+wire [SEW-1:0] counter_tevent;
+wire [SDW-1:0] counter_tdata ;
 // data stream (rle -> shifter)
 wire           rle_tready ;
 wire           rle_tvalid ;
