@@ -1,8 +1,11 @@
-//--------------------------------------------------------------------------------
-// trigger.vhd
+//////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2006 Michael Poppitz
-// 
+// trigger
+//
+// Copyright (C) 2013 Iztok Jeras <iztok.jeras@gmail.com>
+//
+//////////////////////////////////////////////////////////////////////////////
+//
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation; either version 2 of the License, or (at
@@ -17,198 +20,100 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 //
-//--------------------------------------------------------------------------------
-//
-// Details: http://www.sump.org/projects/analyzer/
-//
-// Complex 4 stage 32 channel trigger. 
-//
-// All commands are passed on to the stages. This file only maintains
-// the global trigger level and it outputs the run condition if it is set
-// by any of the stages.
-// 
-//--------------------------------------------------------------------------------
-//
-// 12/29/2010 - Ian Davis (IED) - Verilog version, changed to use LUT based 
-//    masked comparisons, and other cleanups created - mygizmos.org
-// 
-
-`timescale 1ns/100ps
+//////////////////////////////////////////////////////////////////////////////
 
 module trigger #(
-  parameter integer DW = 32
+  // sample data parameters
+  parameter integer SDW = 32,  // sample data    width
+  // trigger event source parameters
+  parameter integer TCN = 4, // trigger comparator number
+  parameter integer TAN = 4, // trigger adder      number
+  // state machine table parameters
+  parameter integer TEW = TCN+TAN, // table event width
+  parameter integer TDW = 4,       // table data width (number of events)
+  parameter integer TAW = TDW+TEW  // table address width
 )(
-  // system signals
-  input  wire          clk,
-  input  wire          rst,
-  // configuration
-  input  wire    [3:0] wrMask,		// Write trigger mask register
-  input  wire    [3:0] wrValue,		// Write trigger value register
-  input  wire    [3:0] wrConfig,		// Write trigger config register
-  input  wire   [31:0] cfg_data,	// Data to write into trigger config regs
-  // control signals
-  input  wire          arm,
-  input  wire          demux_mode,
+  // system signas
+  input  wire           clk,          // clock
+  input  wire           rst,          // reset
+
+  // ststem bus
+
   // input stream
-  input  wire          sti_tready,
-  input  wire          sti_tvalid,
-  input  wire [DW-1:0] sti_tdata ,
-  // status
-  output reg           capture,		// Store captured data in fifo.
-  output wire          run		// Tell controller when trigger hit.
+  output wire           sti_tready,
+  input  wire           sti_tvalid,
+  input  wire [SDW-1:0] sti_tdata ,
+  // output stream
+  input  wire           sto_tready,
+  output reg            sto_tvalid,
+  output reg  [SEW-1:0] sto_tevent,
+  output reg  [SDW-1:0] sto_tdata
 );
 
-wire sti_transfer = sti_tready & sti_tvalid;
+//////////////////////////////////////////////////////////////////////////////
+// comparator
+//////////////////////////////////////////////////////////////////////////////
 
-reg [1:0] levelReg = 2'b00;
+  // configuration
+  input  wire [SDW-1:0] cfg_0_0, //
+  input  wire [SDW-1:0] cfg_0_1, //
+  input  wire [SDW-1:0] cfg_1_0, //
+  input  wire [SDW-1:0] cfg_1_1, //
 
-// if any of the stages set run, then capturing starts...
-wire [3:0] stageRun;
-assign run = |stageRun;
+reg  [SDW-1:0] cmp_tdata;
+reg  [SDW-1:0] cmp_tmatch;
+wire [         cmp_tdata;
 
-//
-// IED - Shift register initialization handler...
-//
-// Much more space efficient in FPGA to compare this way.
-//
-// Instead of four seperate 32-bit value, 32-bit mask, and 32-bit comparison
-// functions & all manner of flops & interconnect, each stage uses LUT table 
-// lookups instead.
-//
-// Each LUT RAM evaluates 4-bits of input.  The RAM is programmed to 
-// evaluate the original masked compare function, and is serially downloaded 
-// by the following verilog.
-//
-//
-// Background:
-// ----------
-// The original function was:  
-//    hit = ((data[31:0] ^ value[31:0]) & mask[31:0])==0;
-//
-//
-// The following table shows the result for a single bit:
-//    data    value   mask    hit
-//      x       x      0       1
-//      0       0      1       1
-//      0       1      1       0
-//      1       0      1       0
-//      1       1      1       1
-//
-// If a mask bit is zero, it always matches.   If one, then 
-// the result of comparing data & value matters.  If data & 
-// value match, the XOR function results in zero.  So if either
-// the mask is zero, or the input matches value, you get a hit.
-//
-//
-// New code
-// --------
-// To evaluate the data, each address of the LUT RAM's evalutes:
-//   What hit value should result assuming my address as input?
-//
-// In other words, LUT for data[3:0] stores the following at given addresses:
-//   LUT address 0 stores result of:  (4'h0 ^ value[3:0]) & mask[3:0])==0
-//   LUT address 1 stores result of:  (4'h1 ^ value[3:0]) & mask[3:0])==0
-//   LUT address 2 stores result of:  (4'h2 ^ value[3:0]) & mask[3:0])==0
-//   LUT address 3 stores result of:  (4'h3 ^ value[3:0]) & mask[3:0])==0
-//   LUT address 4 stores result of:  (4'h4 ^ value[3:0]) & mask[3:0])==0
-//   etc...
-//
-// The LUT for data[7:4] stores the following:
-//   LUT address 0 stores result of:  (4'h0 ^ value[7:4]) & mask[7:4])==0
-//   LUT address 1 stores result of:  (4'h1 ^ value[7:4]) & mask[7:4])==0
-//   LUT address 2 stores result of:  (4'h2 ^ value[7:4]) & mask[7:4])==0
-//   LUT address 3 stores result of:  (4'h3 ^ value[7:4]) & mask[7:4])==0
-//   LUT address 4 stores result of:  (4'h4 ^ value[7:4]) & mask[7:4])==0
-//   etc...
-//
-// Eight LUT's are needed to evalute all 32-bits of data, so the 
-// following verilog computes the LUT RAM data for all simultaneously.
-//
-//
-// Result:
-// ------
-// It functionally does exactly the same thing as before.  Just uses 
-// less FPGA.  Only requirement is the Client software on your PC issue 
-// the value & mask's for each trigger stage in pairs.
-//
-
-reg  [DW-1:0] maskRegister;
-reg  [DW-1:0] valueRegister;
-reg  [3:0] wrcount = 0;
-reg  [3:0] wrenb   = 4'b0;
-wire [7:0] wrdata;
-
+// delay input data
 always @ (posedge clk)
-begin
-  maskRegister  <= (|wrMask ) ? cfg_data : maskRegister;
-  valueRegister <= (|wrValue) ? cfg_data : valueRegister;
-end
+if (sti_transfer) dly_tdata <= sti_tdata;
 
+assign sts_tmatch <= ((~dly_tdata & ~sti_tdata) & cfg_0_0) |
+                     ((~dly_tdata &  sti_tdata) & cfg_0_1) |
+                     (( dly_tdata & ~sti_tdata) & cfg_1_0) |
+                     (( dly_tdata &  sti_tdata) & cfg_1_1) ;
+
+// match data against configuration
 always @ (posedge clk, posedge rst)
 if (rst) begin
-  wrcount <= 0;
-  wrenb   <= 4'h0;
-end else begin
-  // Do 16 writes when value register written...
-  if (|wrenb) begin
-    wrcount <= wrcount + 'b1;
-    if (&wrcount) wrenb <= 4'h0;
-  end else begin
-    wrcount <= 0;
-    wrenb <= wrenb | wrValue;
-  end
+  sts_and <= 1'b0;
+  sts_or  <= 1'b0;
+else if (sti_transfer) begin
+  sts_and <= &sts_tmatch;
+  sts_or  <= |sts_tmatch;
 end
 
-// Compute data for the 8 target LUT's...
-assign wrdata = {
-  ~|((~wrcount^valueRegister[31:28])&maskRegister[31:28]),
-  ~|((~wrcount^valueRegister[27:24])&maskRegister[27:24]),
-  ~|((~wrcount^valueRegister[23:20])&maskRegister[23:20]),
-  ~|((~wrcount^valueRegister[19:16])&maskRegister[19:16]),
-  ~|((~wrcount^valueRegister[15:12])&maskRegister[15:12]),
-  ~|((~wrcount^valueRegister[11: 8])&maskRegister[11: 8]),
-  ~|((~wrcount^valueRegister[7 : 4])&maskRegister[ 7: 4]),
-  ~|((~wrcount^valueRegister[3 : 0])&maskRegister[ 3: 0])
-};
+//////////////////////////////////////////////////////////////////////////////
+// adder
+//////////////////////////////////////////////////////////////////////////////
 
-//
-// Instantiate stages...
-//
-wire [3:0] stageMatch;
-stage stage [3:0] (
-  // system signals
-  .clk        (clk),
-  .rst        (rst),
-  // input stream
-  .sti_tdata  (sti_tdata   ),
-  .sti_tvalid (sti_transfer), 
-//.wrMask     (wrMask),
-//.wrValue    (wrValue),
-  // configuration 
-  .wrenb      (wrenb),
-  .din        (wrdata),
-  .wrConfig   (wrConfig),
-  .cfg_data   (cfg_data),
-  // control
-  .arm        (arm),
-  .level      (levelReg),
-  .demux_mode (demux_mode),
-  .run        (stageRun),
-  .match      (stageMatch)
-);
+  // configuration
+  input  wire [SDW-1:0] cfg_val, //
 
-//
-// Increase level on match (on any level?!)...
-//
-always @(posedge clk, posedge rst) 
-begin : P2
-  if (rst) begin
-    capture  <= 1'b0;
-    levelReg <= 2'b00;
-  end else begin
-    capture  <= arm | capture;
-    if (|stageMatch) levelReg <= levelReg + 'b1;
-  end
-end
+reg [SDW-1:0] sub_val;
+
+// match data against configuration
+always @ (posedge clk, posedge rst)
+if (rst)  sub_val <= 'd0;
+else if (sti_transfer)  sub_val <= $signed({1'b0,sti_tdata}) - $signed({1'b0,sub_val});
+
+
+//////////////////////////////////////////////////////////////////////////////
+// state machine table
+//////////////////////////////////////////////////////////////////////////////
+
+// state machine table
+reg  [TDW-1:0] tbl_mem [2**TAW-1:0];  // state machine table
+reg  [TDW-1:0] tbl_stt;  // state
+reg  [TEW-1:0] tbl_evt;  // events
+reg  [TAW-1:0] tbl_adr;  // address
+
+// next state (rable read)
+always @ (posedge clk);
+if (sti_transfer) tbl_stt <= tbl_mem [{tbl_evt, tbl_stt}];
+
+// table write
+always @ (posedge clk);
+if () tbl_mem [tbl_adr] <= bus_wdata;
 
 endmodule
