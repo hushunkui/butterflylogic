@@ -64,17 +64,30 @@ module trigger #(
 //////////////////////////////////////////////////////////////////////////////
 
 // input stream transfer
-
+wire           sti_transfer;
+wire [TAW-1:0] sti_tevent;
 
 // system bus transfer
 wire bus_transfer;
 
-// configuration
-reg  [TCN    -1:0] cfg_mod;
-reg  [TCN*SDW-1:0] cfg_0_0;
-reg  [TCN*SDW-1:0] cfg_0_1;
-reg  [TCN*SDW-1:0] cfg_1_0;
-reg  [TCN*SDW-1:0] cfg_1_1;
+// configuration - comparator
+reg  [TMN    -1:0] cfg_cmp_mod;
+reg  [TMN*SDW-1:0] cfg_cmp_0_0;
+reg  [TMN*SDW-1:0] cfg_cmp_0_1;
+reg  [TMN*SDW-1:0] cfg_cmp_1_0;
+reg  [TMN*SDW-1:0] cfg_cmp_1_1;
+// configuration - adder
+reg  [TAN    -1:0] cfg_add_mod;
+reg  [TAN*SDW-1:0] cfg_add_msk;
+reg  [TAN*SDW-1:0] cfg_add_val;
+// configuration - counter
+reg  [TCN*TAW-1:0] cfg_clr_val;
+reg  [TCN*TAW-1:0] cfg_clr_msk;
+reg  [TCN*TAW-1:0] cfg_inc_val;
+reg  [TCN*TAW-1:0] cfg_inc_msk;
+reg  [TCN*TAW-1:0] cfg_dec_val;
+reg  [TCN*TAW-1:0] cfg_dec_msk;
+reg  [TCN*TCW-1:0] cfg_val    ;
 
 // state machine table
 reg  [TDW-1:0] tbl_mem [2**TAW-1:0];  // state machine table
@@ -82,9 +95,16 @@ reg  [TDW-1:0] tbl_stt;  // state
 reg  [TEW-1:0] tbl_evt;  // events
 reg  [TAW-1:0] tbl_adr;  // address
 
+// events
+wire [TMN-1:0] evt_cmp;
+wire [TAN-1:0] evt_add;
+wire [TCN-1:0] evt_cnt;
+
 //////////////////////////////////////////////////////////////////////////////
 // system bus access to configuration
 //////////////////////////////////////////////////////////////////////////////
+
+integer i;
 
 // system bus transfer
 assign bus_transfer = bus_wvalid & bus_wready;
@@ -92,16 +112,42 @@ assign bus_transfer = bus_wvalid & bus_wready;
 // table write
 always @ (posedge clk)
 if (bus_transfer) begin
-  case (bus_taddr[BAW-1:BAW-2])
+  case (bus_waddr[BAW-1:BAW-2])
     2'b00: begin
-      for (i=0; i<TCN; i=i+1) begin
-        if (bus_address[4:3] == i) begin
-          case (bus_taddr[2:0])
-            3'b000: cfg_mod [  1*i:  1] <= bus_wdata;
-            3'b100: cfg_0_0 [SDW*i:SDW] <= bus_wdata;
-            3'b101: cfg_0_1 [SDW*i:SDW] <= bus_wdata;
-            3'b110: cfg_1_0 [SDW*i:SDW] <= bus_wdata;
-            3'b111: cfg_1_1 [SDW*i:SDW] <= bus_wdata;
+      for (i=0; i<TMN; i=i+1) begin
+        if (bus_waddr[4:3] == i) begin
+          case (bus_waddr[2:0])
+            3'b000: cfg_cmp_mod [  1*i:  1] <= bus_wdata;
+            3'b100: cfg_cmp_0_0 [SDW*i:SDW] <= bus_wdata;
+            3'b101: cfg_cmp_0_1 [SDW*i:SDW] <= bus_wdata;
+            3'b110: cfg_cmp_1_0 [SDW*i:SDW] <= bus_wdata;
+            3'b111: cfg_cmp_1_1 [SDW*i:SDW] <= bus_wdata;
+          endcase
+        end
+      end
+    end
+    2'b01: begin
+      for (i=0; i<TAN; i=i+1) begin
+        if (bus_waddr[4:3] == i) begin
+          case (bus_waddr[1:0])
+            3'b00: cfg_add_mod [  1*i:  1] <= bus_wdata;
+            3'b10: cfg_add_msk [SDW*i:SDW] <= bus_wdata;
+            3'b11: cfg_add_val [SDW*i:SDW] <= bus_wdata;
+          endcase
+        end
+      end
+    end
+    2'b10: begin
+      for (i=0; i<TAN; i=i+1) begin
+        if (bus_waddr[4:3] == i) begin
+          case (bus_waddr[2:0])
+            3'b000: cfg_clr_val [TAW*i:TAW] <= bus_wdata;
+            3'b001: cfg_clr_msk [TAW*i:TAW] <= bus_wdata;
+            3'b010: cfg_inc_val [TAW*i:TAW] <= bus_wdata;
+            3'b011: cfg_inc_msk [TAW*i:TAW] <= bus_wdata;
+            3'b100: cfg_dec_val [TAW*i:TAW] <= bus_wdata;
+            3'b101: cfg_dec_msk [TAW*i:TAW] <= bus_wdata;
+            3'b11x: cfg_val     [TCW*i:TCW] <= bus_wdata;
           endcase
         end
       end
@@ -131,13 +177,13 @@ trigger_comparator #(
   .clk      (clk),
   .rst      (rst),
   // configuration
-  .cfg_mod  (cfg_mod),
-  .cfg_0_0  (cfg_0_0),
-  .cfg_0_1  (cfg_0_1),
-  .cfg_1_0  (cfg_1_0),
-  .cfg_1_1  (cfg_1_1),
+  .cfg_mod  (cfg_cmp_mod),
+  .cfg_0_0  (cfg_cmp_0_0),
+  .cfg_0_1  (cfg_cmp_0_1),
+  .cfg_1_0  (cfg_cmp_1_0),
+  .cfg_1_1  (cfg_cmp_1_1),
   // status
-  .sts_evt  (sts_evt_cmp),
+  .sts_evt  (evt_cmp),
   // input stream
   .sti_transfer (sti_transfer),
   .sti_tdata    (sti_tdata   )
@@ -155,11 +201,11 @@ trigger_adder #(
   .clk      (clk),
   .rst      (rst),
   // configuration
-  .cfg_mod  (cfg_mod),
-  .cfg_msk  (cfg_msk),
-  .cfg_val  (cfg_val),
+  .cfg_mod  (cfg_add_mod),
+  .cfg_msk  (cfg_add_msk),
+  .cfg_val  (cfg_add_val),
   // status
-  .sts_evt  (sts_evt_adr),
+  .sts_evt  (evt_add),
   // input stream
   .sti_transfer (sti_transfer),
   .sti_tdata    (sti_tdata   )
