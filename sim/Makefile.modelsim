@@ -1,4 +1,4 @@
-DIR_XILINX = ~/Xilinx/14.5/ISE_DS/ISE/verilog/src/unisims/
+DIR_XILINX = ~/Xilinx/14.5/ISE_DS/ISE/verilog/src/unisims
 DIR_ALTERA = ~/Altera/
 
 LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
@@ -60,16 +60,16 @@ all: sampler trigger shifter rle top_spi top_uart
 work:
 	vlib work
 
-sampler: $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v
-	iverilog $(OPT) $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v -o sampler.out
-	vvp -n -l sampler.log sampler.out
+sampler: $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v work
+	vlog $(OPT) $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v
+	vsim -c -do 'run -all; quit' tb_sampler
 
 shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v work
 	vlog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	vsim -c -do 'run -all; quit' tb_shifter
 
-trigger: ../tbn/tb_trigger.sv $(RTL_TRG) work
-	vlog $(OPT) ../tbn/tb_trigger.sv $(RTL_TRG)
+trigger: $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG) work
+	vlog $(OPT) $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG)
 	vsim -c -do 'run -all; quit' tb_trigger
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v work

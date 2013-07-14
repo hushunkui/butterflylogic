@@ -37,7 +37,9 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/sram_interface.v  \
           ../rtl/stage.v           \
           ../rtl/sync.v            \
-          $(RTL_TRG)
+          $(RTL_TRG)               \
+          $(RTL_SPI)               \
+          $(RTL_UART)
 
 TBN_MIX = ../tbn/tb_shifter.sv \
           ../tbn/tb_adv.sv  \
@@ -53,7 +55,7 @@ else
 OPT = -g2012 -I rtl -D ICARUS
 endif
 
-all: sampler shifter adv rle top_spi top_uart
+all: sampler trigger shifter rle top_spi top_uart
 
 sampler: $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v -o sampler.out
@@ -63,17 +65,13 @@ shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out
 	vvp -n -l shifter.log shifter.out
 
-trigger: ../tbn/tb_trigger.sv $(RTL_TRG)
-	iverilog $(OPT) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
+trigger: $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG)
+	iverilog $(OPT) $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
 	vvp -n -l adv.log adv.out
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v -o rle.out
 	vvp -n -l rle.log rle.out
-
-Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX)
-	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX) -o full.out
-	vvp -n -l full.log full.out
 
 uart_txd.fifo:
 	touch uart_txd.fifo
@@ -86,6 +84,10 @@ pipe: uart_txd.fifo uart_rxd.fifo
 uart: ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART)
 	iverilog $(OPT) ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART) -o uart.out
 	vvp -n -l uart.log uart.out
+
+Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX)
+	iverilog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(RTL_SPI) $(TBN_SPI) $(LIB_XILINX) -o full.out
+	vvp -n -l full.log full.out
 
 Terasic_DE1: ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) pipe
 	iverilog $(OPT) ../rtl/Terasic_DE1.sv ../tbn/tb_Terasic_DE1.sv $(RTL) $(RTL_UART) $(TBN_UART) $(LIB_ALTERA) -o full.out

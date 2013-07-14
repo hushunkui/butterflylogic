@@ -26,8 +26,7 @@
 
 module tb_sampler #(
   parameter int SDW = 32,  // sample data    width
-  parameter int SCW = 32,  // sample counter width
-  parameter int SEW = 1    // sample event   width
+  parameter int SCW = 32   // sample counter width
 );
 
 // system signals
@@ -38,17 +37,14 @@ always #5ns clk = ~clk;
 
 // configuration
 logic [SCW-1:0] cfg_div = 0;
-logic [SEW-0:0] cfg_evt_smp = 'b10;  // event sample mask
 
 // input stream
 logic           sti_tready;
 logic           sti_tvalid;
-logic [SEW-1:0] sti_tevent;
 logic [SDW-1:0] sti_tdata ;
 // output stream
 logic           sto_tready;
 logic           sto_tvalid;
-logic [SEW-1:0] sto_tevent;
 logic [SDW-1:0] sto_tdata ;
 
 // test signals
@@ -122,50 +118,44 @@ endtask: test_rate
 ////////////////////////////////////////////////////////////////////////////////
 
 // stream source instance
-str_src #(.VW (SEW+SDW)) src (
+str_src #(.VW (SDW)) src (
   // system signals
   .clk     (clk),
   .rst     (rst),
   // stream
   .tready  (sti_tready ),
   .tvalid  (sti_tvalid ),
-  .tdata  ({sti_tevent ,
-            sti_tdata  })
+  .tdata   (sti_tdata  )
 );
 
 // stream drain instance
-str_drn #(.VW (SEW+SDW)) drn (
+str_drn #(.VW (SDW)) drn (
   // system signals
   .clk     (clk),
   .rst     (rst),
   // stream
   .tready  (sto_tready),
   .tvalid  (sto_tvalid),
-  .tdata  ({sto_tevent,
-            sto_tdata })
+  .tdata   (sto_tdata )
 );
 
 // DUT instance
 sampler #(
   .SDW  (SDW),
-  .SCW  (SCW),
-  .SEW  (SEW)
+  .SCW  (SCW)
 ) sampler (
   // system signals
   .clk         (clk),
   .rst         (rst),
   // configuration signals
   .cfg_div     (cfg_div),
-  .cfg_evt_smp (cfg_evt_smp),
   // input stream
   .sti_tdata   (sti_tdata ),
   .sti_tvalid  (sti_tvalid),
-  .sti_tevent  (sti_tevent),
   .sti_tready  (sti_tready),
   // output stream
   .sto_tdata   (sto_tdata ),
   .sto_tvalid  (sto_tvalid),
-  .sto_tevent  (sto_tevent),
   .sto_tready  (sto_tready)
 );
 
