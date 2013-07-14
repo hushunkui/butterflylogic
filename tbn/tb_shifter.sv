@@ -89,7 +89,7 @@ endtask: test_bypass
 ////////////////////////////////////////////////////////////////////////////////
 
 // stream source instance
-str_src #(.VW (DW)) src (
+str_src #(.DW (DW)) src (
   // system signals
   .clk     (clk),
   .rst     (rst),
@@ -100,7 +100,7 @@ str_src #(.VW (DW)) src (
 );
 
 // stream drain instance
-str_drn #(.VW (DW)) drn (
+str_drn #(.DW (DW)) drn (
   // system signals
   .clk     (clk),
   .rst     (rst),

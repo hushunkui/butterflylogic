@@ -118,7 +118,7 @@ endtask: test_rate
 ////////////////////////////////////////////////////////////////////////////////
 
 // stream source instance
-str_src #(.VW (SDW)) src (
+str_src #(.DW (SDW)) src (
   // system signals
   .clk     (clk),
   .rst     (rst),
@@ -129,7 +129,7 @@ str_src #(.VW (SDW)) src (
 );
 
 // stream drain instance
-str_drn #(.VW (SDW)) drn (
+str_drn #(.DW (SDW)) drn (
   // system signals
   .clk     (clk),
   .rst     (rst),

@@ -68,7 +68,7 @@ end
 ////////////////////////////////////////////////////////////////////////////////
 
 // stream source instance
-str_src #(.VW (DW)) str_txd (
+str_src #(.DW (DW)) str_txd (
   // system signals
   .clk     (clk),
   .rst     (rst),
@@ -79,7 +79,7 @@ str_src #(.VW (DW)) str_txd (
 );
 
 // stream drain instance
-str_drn #(.VW (DW)) str_rxd (
+str_drn #(.DW (DW)) str_rxd (
   // system signals
   .clk     (clk),
   .rst     (rst),

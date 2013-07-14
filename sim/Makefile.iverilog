@@ -48,6 +48,7 @@ TBN_MIX = ../tbn/tb_shifter.sv \
 TBN_UART= ../tbn/uart_model.sv
 TBN_SPI = ../tbn/spi_master.sv
 TBN_STR = ../tbn/str.sv
+TBN_BUS = ../tbn/bus.sv
 
 ifdef WAVE
 OPT = -g2012 -I rtl -D ICARUS -D WAVE
@@ -65,8 +66,8 @@ shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out
 	vvp -n -l shifter.log shifter.out
 
-trigger: $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG)
-	iverilog $(OPT) $(TBN_STR) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
+trigger: $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG)
+	iverilog $(OPT) $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
 	vvp -n -l adv.log adv.out
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v

@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module str_src #(
-  parameter int VW = 32  // data width
+  parameter int DW = 32  // data width
 )(
   // system signals
   input  logic          clk, 
@@ -9,11 +9,11 @@ module str_src #(
   // bus signals
   output logic          tvalid = 1'b0,
   input  logic          tready,
-  output logic [VW-1:0] tdata
+  output logic [DW-1:0] tdata
 );
 
 // transfer
-task trn (input [VW-1:0] data);
+task trn (input [DW-1:0] data);
 begin
   // put data on the bus
   tvalid = 1'b1;
@@ -29,7 +29,7 @@ endmodule: str_src
 
 
 module str_drn #(
-  parameter int VW = 32  // data width
+  parameter int DW = 32  // data width
 )(
   // system signals
   input  logic          clk, 
@@ -37,11 +37,11 @@ module str_drn #(
   // bus signals
   input  logic          tvalid,
   output logic          tready = 1'b0,
-  input  logic [VW-1:0] tdata
+  input  logic [DW-1:0] tdata
 );
 
 // transfer
-task trn (output [VW-1:0] data);
+task trn (output [DW-1:0] data);
 begin
   // perform transfer cycle
   tready = 1'b1;
