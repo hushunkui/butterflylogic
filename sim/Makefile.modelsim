@@ -1,20 +1,28 @@
 DIR_XILINX = ~/Xilinx/14.5/ISE_DS/ISE/verilog/src/unisims/
+DIR_ALTERA = ~/Altera/
 
-LIB     = $(DIR_XILINX)/BUFGMUX.v  \
-          $(DIR_XILINX)/BUFG.v     \
-          $(DIR_XILINX)/DCM.v      \
-          $(DIR_XILINX)/IOBUF.v    \
-          $(DIR_XILINX)/IBUF.v     \
-          $(DIR_XILINX)/ODDR2.v    \
-          $(DIR_XILINX)/IDDR2.v    \
-          $(DIR_XILINX)/../glbl.v
+LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
+             $(DIR_XILINX)/BUFG.v     \
+             $(DIR_XILINX)/DCM.v      \
+             $(DIR_XILINX)/IOBUF.v    \
+             $(DIR_XILINX)/IBUF.v     \
+             $(DIR_XILINX)/ODDR2.v    \
+             $(DIR_XILINX)/IDDR2.v    \
+             $(DIR_XILINX)/../glbl.v
 
-RTL_SPI = ../rtl/spi_receiver.v    \
-          ../rtl/spi_slave.v       \
+LIB_ALTERA =
+#LIB_ALTERA = $(DIR_ALTERA)/
+
+RTL_SPI = ../rtl/spi_receiver.v       \
+          ../rtl/spi_slave.v          \
           ../rtl/spi_transmitter.v
-RTL_UART= ../rtl/uart_rx.v         \
-          ../rtl/uart_tx.v         \
+RTL_UART= ../rtl/uart_rx.v            \
+          ../rtl/uart_tx.v            \
           ../rtl/uart.v
+RTL_TRG = ../rtl/trigger_comparator.v \
+          ../rtl/trigger_adder.v      \
+          ../rtl/trigger_counter.v    \
+          ../rtl/trigger.v
 RTL     = ../rtl/cdc.v             \
           ../rtl/controller.v      \
           ../rtl/core.v            \
@@ -29,9 +37,7 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/sram_interface.v  \
           ../rtl/stage.v           \
           ../rtl/sync.v            \
-          ../rtl/timer.v           \
-          ../rtl/trigger_adv.v     \
-          ../rtl/trigger.v         \
+          $(RTL_TRG)               \
           $(RTL_SPI)               \
           $(RTL_UART)
 
@@ -49,18 +55,22 @@ else
 OPT = +define+MODELSIM
 endif
 
-all: shifter adv rle top_spi top_uart
+all: sampler trigger shifter rle top_spi top_uart
 
 work:
 	vlib work
 
+sampler: $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v
+	iverilog $(OPT) $(TBN_STR) ../tbn/tb_sampler.sv ../rtl/sampler.v -o sampler.out
+	vvp -n -l sampler.log sampler.out
+
 shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v work
-	vsim $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
+	vlog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	vsim -c -do 'run -all; quit' tb_shifter
 
-adv: ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
-	svim $(OPT) ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
-	vsim -c -do 'run -all; quit' tb_adv
+trigger: ../tbn/tb_trigger.sv $(RTL_TRG) work
+	vlog $(OPT) ../tbn/tb_trigger.sv $(RTL_TRG)
+	vsim -c -do 'run -all; quit' tb_trigger
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v work
 	vlog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
@@ -73,6 +83,10 @@ uart_rxd.fifo:
 	touch uart_rxd.fifo
 
 pipe: uart_txd.fifo uart_rxd.fifo
+
+uart: ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART) work
+	vlog $(OPT) ../tbn/tb_uart.sv $(TBN_UART) $(TBN_STR) $(RTL_UART)
+	vsim -c -do 'run -all; quit' tb_uart
 
 Logic_Sniffer: ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB) work
 	vlog $(OPT) ../rtl/Logic_Sniffer.v ../tbn/tb_logic_sniffer.sv $(RTL) $(TBN_SPI) $(LIB)

@@ -13,12 +13,16 @@ LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
 LIB_ALTERA =
 #LIB_ALTERA = $(DIR_ALTERA)/
 
-RTL_SPI = ../rtl/spi_receiver.v    \
-          ../rtl/spi_slave.v       \
+RTL_SPI = ../rtl/spi_receiver.v       \
+          ../rtl/spi_slave.v          \
           ../rtl/spi_transmitter.v
-RTL_UART= ../rtl/uart_rx.v         \
-          ../rtl/uart_tx.v         \
+RTL_UART= ../rtl/uart_rx.v            \
+          ../rtl/uart_tx.v            \
           ../rtl/uart.v
+RTL_TRG = ../rtl/trigger_comparator.v \
+          ../rtl/trigger_adder.v      \
+          ../rtl/trigger_counter.v    \
+          ../rtl/trigger.v
 RTL     = ../rtl/cdc.v             \
           ../rtl/controller.v      \
           ../rtl/core.v            \
@@ -33,9 +37,7 @@ RTL     = ../rtl/cdc.v             \
           ../rtl/sram_interface.v  \
           ../rtl/stage.v           \
           ../rtl/sync.v            \
-          ../rtl/timer.v           \
-          ../rtl/trigger_adv.v     \
-          ../rtl/trigger.v
+          $(RTL_TRG)
 
 TBN_MIX = ../tbn/tb_shifter.sv \
           ../tbn/tb_adv.sv  \
@@ -61,8 +63,8 @@ shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v -o shifter.out
 	vvp -n -l shifter.log shifter.out
 
-adv: ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v
-	iverilog $(OPT) ../tbn/tb_adv.sv ../rtl/trigger_adv.v ../rtl/timer.v ../rtl/regs.v -o adv.out
+trigger: ../tbn/tb_trigger.sv $(RTL_TRG)
+	iverilog $(OPT) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
 	vvp -n -l adv.log adv.out
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v

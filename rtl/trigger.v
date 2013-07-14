@@ -104,58 +104,70 @@ wire [TCN-1:0] evt_cnt;
 // system bus access to configuration
 //////////////////////////////////////////////////////////////////////////////
 
-integer i;
+genvar i;
 
 // system bus transfer
 assign bus_transfer = bus_wvalid & bus_wready;
 
 // table write
+
+generate
+for (i=0; i<TMN; i=i+1) begin
+  always @ (posedge clk)
+  if (bus_transfer & (bus_waddr[BAW-1:BAW-2] == 2'b00)) begin
+    if (bus_waddr[4:3] == i) begin
+      case (bus_waddr[2:0])
+        3'b000: cfg_cmp_mod [  1*i+:  1] <= bus_wdata [0+:  1];
+        3'b100: cfg_cmp_0_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b101: cfg_cmp_0_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b110: cfg_cmp_1_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b111: cfg_cmp_1_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+      endcase
+    end
+  end
+end
+endgenerate
+
+
+generate
+for (i=0; i<TAN; i=i+1) begin
+  always @ (posedge clk)
+  if (bus_transfer & (bus_waddr[BAW-1:BAW-2] == 2'b01)) begin
+    if (bus_waddr[4:3] == i) begin
+      case (bus_waddr[1:0])
+        3'b00: cfg_add_mod [  1*i+:  1] <= bus_wdata [0+:  1];
+        3'b10: cfg_add_msk [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b11: cfg_add_val [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+      endcase
+    end
+  end
+end
+endgenerate
+
+
+generate
+for (i=0; i<TCN; i=i+1) begin
+  always @ (posedge clk)
+  if (bus_transfer & (bus_waddr[BAW-1:BAW-2] == 2'b10)) begin
+    if (bus_waddr[4:3] == i) begin
+      case (bus_waddr[2:0])
+        3'b000: cfg_clr_val [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b001: cfg_clr_msk [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b010: cfg_inc_val [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b011: cfg_inc_msk [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b100: cfg_dec_val [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b101: cfg_dec_msk [TAW*i+:TAW] <= bus_wdata [0+:TAW];
+        3'b11x: cfg_val     [TCW*i+:TCW] <= bus_wdata [0+:TCW];
+      endcase
+    end
+  end
+end
+endgenerate
+
+
 always @ (posedge clk)
-if (bus_transfer) begin
-  case (bus_waddr[BAW-1:BAW-2])
-    2'b00: begin
-      for (i=0; i<TMN; i=i+1) begin
-        if (bus_waddr[4:3] == i) begin
-          case (bus_waddr[2:0])
-            3'b000: cfg_cmp_mod [  1*i:  1] <= bus_wdata;
-            3'b100: cfg_cmp_0_0 [SDW*i:SDW] <= bus_wdata;
-            3'b101: cfg_cmp_0_1 [SDW*i:SDW] <= bus_wdata;
-            3'b110: cfg_cmp_1_0 [SDW*i:SDW] <= bus_wdata;
-            3'b111: cfg_cmp_1_1 [SDW*i:SDW] <= bus_wdata;
-          endcase
-        end
-      end
-    end
-    2'b01: begin
-      for (i=0; i<TAN; i=i+1) begin
-        if (bus_waddr[4:3] == i) begin
-          case (bus_waddr[1:0])
-            3'b00: cfg_add_mod [  1*i:  1] <= bus_wdata;
-            3'b10: cfg_add_msk [SDW*i:SDW] <= bus_wdata;
-            3'b11: cfg_add_val [SDW*i:SDW] <= bus_wdata;
-          endcase
-        end
-      end
-    end
-    2'b10: begin
-      for (i=0; i<TAN; i=i+1) begin
-        if (bus_waddr[4:3] == i) begin
-          case (bus_waddr[2:0])
-            3'b000: cfg_clr_val [TAW*i:TAW] <= bus_wdata;
-            3'b001: cfg_clr_msk [TAW*i:TAW] <= bus_wdata;
-            3'b010: cfg_inc_val [TAW*i:TAW] <= bus_wdata;
-            3'b011: cfg_inc_msk [TAW*i:TAW] <= bus_wdata;
-            3'b100: cfg_dec_val [TAW*i:TAW] <= bus_wdata;
-            3'b101: cfg_dec_msk [TAW*i:TAW] <= bus_wdata;
-            3'b11x: cfg_val     [TCW*i:TCW] <= bus_wdata;
-          endcase
-        end
-      end
-    end
-    2'b11: begin
-      tbl_mem [bus_waddr] <= bus_wdata;
-    end
-  endcase
+if (bus_transfer & (bus_waddr[BAW-1:BAW-2] == 2'b11)) begin
+  tbl_mem [bus_waddr] <= bus_wdata;
 end
 
 //////////////////////////////////////////////////////////////////////////////
