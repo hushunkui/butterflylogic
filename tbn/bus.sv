@@ -25,8 +25,11 @@ begin
   waddr  = adr;
   wdata  = dat;
   // perform transfer cycle
-  do @ (posedge clk);
-  while (~wready);
+  @ (posedge clk);
+  while (~wready)
+  @ (posedge clk);
+//  do @ (posedge clk);
+//  while (~wready);
   waddr  = 'x;
   wdata  = 'x;
   wvalid = 1'b0;
@@ -58,8 +61,11 @@ task trn (
 begin
   // perform transfer cycle
   wready = 1'b1;
-  do @ (posedge clk);
-  while (~wvalid);
+  @ (posedge clk);
+  while (~wready)
+  @ (posedge clk);
+//  do @ (posedge clk);
+//  while (~wvalid);
   wready = 1'b0;
   // pick data from the bus
   adr = waddr;
