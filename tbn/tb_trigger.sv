@@ -30,7 +30,7 @@ module tb_trigger #(
   parameter integer BDW = 32,  // bus data    width
   // sample data parameters
   parameter integer SDW = 32,  // sample data    width
-  parameter integer SEW = 32,  // sample data    width
+  parameter integer SEW = 2,   // sample data    width
   // trigger event source parameters
   parameter integer TMN = 4,   // trigger matcher number
   parameter integer TAN = 2,   // trigger adder   number
@@ -118,7 +118,7 @@ str_src #(.DW (SDW)) src (
 );
 
 // stream drain instance
-str_drn #(.DW (2+SDW)) drn (
+str_drn #(.DW (SEW+SDW)) drn (
   // system signals
   .clk     (clk),
   .rst     (rst),
@@ -132,8 +132,8 @@ str_drn #(.DW (2+SDW)) drn (
 // DUT instance
 trigger #(
   // system bus parameters
-  .BDW (BDW),
   .BAW (BAW),
+  .BDW (BDW),
   // sample data parameters
   .SDW (SDW),
   .SEW (SEW),
