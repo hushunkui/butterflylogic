@@ -66,9 +66,15 @@ localparam integer TDW = TSW+SEW;      // table data width
 // local signals
 //////////////////////////////////////////////////////////////////////////////
 
-// input stream transfer
+// input stream signals
 wire           sti_transfer;
-wire [TAW-1:0] sti_tevent;
+
+// local stream signals
+wire           stl_transfer;
+wire           stl_tready;
+reg            stl_tvalid;
+reg  [TAW-1:0] stl_tevent;
+reg  [SDW-1:0] stl_tdata ;
 
 // system bus transfer
 wire bus_transfer;
@@ -115,10 +121,9 @@ assign bus_wready = 1'b1;
 // system bus transfer
 assign bus_transfer = bus_wvalid & bus_wready;
 
-// table write
-
+// comparator configuration write
 generate
-for (i=0; i<TMN; i=i+1) begin
+for (i=0; i<TMN; i=i+1) begin: cmp
   always @ (posedge clk, posedge rst)
   if (rst) begin
     cfg_cmp_mod [  1*i+:  1] <= {  1{1'b0}};
@@ -140,9 +145,9 @@ for (i=0; i<TMN; i=i+1) begin
 end
 endgenerate
 
-
+// adder configuration write
 generate
-for (i=0; i<TAN; i=i+1) begin
+for (i=0; i<TAN; i=i+1) begin: add
   always @ (posedge clk, posedge rst)
   if (rst) begin
     cfg_add_mod [  1*i+:  1] <= {  1{1'b0}};
@@ -160,9 +165,9 @@ for (i=0; i<TAN; i=i+1) begin
 end
 endgenerate
 
-
+// counter configuration write
 generate
-for (i=0; i<TCN; i=i+1) begin
+for (i=0; i<TCN; i=i+1) begin: cnt
   always @ (posedge clk, posedge rst)
   if (rst) begin
     cfg_clr_val [TAW*i+:TAW] <= {TAW{1'b0}};
@@ -188,7 +193,7 @@ for (i=0; i<TCN; i=i+1) begin
 end
 endgenerate
 
-
+// state machine LUT write
 always @ (posedge clk)
 if (bus_transfer & (bus_waddr[BAW-1:BAW-2] == 2'b11)) begin
   tbl_mem [bus_waddr] <= bus_wdata;
@@ -198,20 +203,32 @@ end
 // sample data path
 //////////////////////////////////////////////////////////////////////////////
 
-// sample data transfer
+// input stage transfer
 assign sti_transfer = sti_tvalid & sti_tready;
-assign sto_transfer = sto_tvalid & sto_tready;
-
-//
+// input stage ready
 assign sti_tready = sto_tready | ~sto_tvalid;
 
-//
+// local stage transfer
+assign stl_transfer = stl_tvalid & stl_tready;
+// local stage ready
+assign sti_tready = sto_tready | ~sto_tvalid;
+// local stage valid
 always @ (posedge clk, posedge rst)
-if (sti_tready) sto_tvalid <= sti_tvalid;
-
+if (rst)              stl_tvalid <= 1'b0;
+else if (sti_tready)  stl_tvalid <= sti_tvalid;
+// local stage data
 always @ (posedge clk, posedge rst)
-if (sti_transfer)  sto_tdata <= sti_tdata;
+if (sti_transfer)  stl_tdata <= sti_tdata;
 
+// output stage transfer
+assign sto_transfer = sto_tvalid & sto_tready;
+// output stage valid
+always @ (posedge clk, posedge rst)
+if (rst)              sto_tvalid <= 1'b0;
+else if (sti_tready)  sto_tvalid <= stl_tvalid;
+// output stage data
+always @ (posedge clk, posedge rst)
+if (sti_transfer)  sto_tdata <= stl_tdata;
 
 //////////////////////////////////////////////////////////////////////////////
 // comparators
@@ -285,8 +302,8 @@ trigger_counter #(
   // status
   .sts_evt     (sts_evt_cnt),
   // input stream
-  .sti_transfer (sti_transfer),
-  .sti_tevent   (sti_tevent  )
+  .sti_transfer (stl_transfer),
+  .sti_tevent   (stl_tevent  )
 );
 
 //////////////////////////////////////////////////////////////////////////////
