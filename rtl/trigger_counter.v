@@ -26,28 +26,20 @@ module trigger_counter #(
   // sample data parameters
   parameter integer SDW = 32,  // sample data    width
   // counter parameters
-  parameter integer TCW = 32,  // trigger counter width
-  // state machine table parameters
-  parameter integer TAW = 1    // table address width
+  parameter integer TCW = 32   // trigger counter width
 )(
   // system signas
   input  wire           clk,          // clock
   input  wire           rst,          // reset
 
   // configuration
-  input  wire [TAW-1:0] cfg_clr_val,  // clear     event value
-  input  wire [TAW-1:0] cfg_clr_msk,  // clear     event mask
-  input  wire [TAW-1:0] cfg_inc_val,  // increment event value
-  input  wire [TAW-1:0] cfg_inc_msk,  // increment event mask
-  input  wire [TAW-1:0] cfg_dec_val,  // decrement event value
-  input  wire [TAW-1:0] cfg_dec_msk,  // decrement event mask
   input  wire [TCW-1:0] cfg_val,      // counter value to match
   // status
   output wire           sts_evt,
 
   // input stream
   input  wire           sti_transfer,
-  input  wire [TAW-1:0] sti_tevent
+  input  wire   [2-1:0] sti_tevent
 );
 
 //////////////////////////////////////////////////////////////////////////////
@@ -64,9 +56,9 @@ wire           cnt_dec;
 // counter
 //////////////////////////////////////////////////////////////////////////////
 
-assign cnt_clr = (sti_tevent & cfg_clr_msk) == cfg_clr_val;
-assign cnt_inc = (sti_tevent & cfg_inc_msk) == cfg_inc_val;
-assign cnt_dec = (sti_tevent & cfg_dec_msk) == cfg_dec_val;
+assign cnt_clr = sti_tevent == 2'b01;
+assign cnt_inc = sti_tevent == 2'b10;
+assign cnt_dec = sti_tevent == 2'b11;
 
 // subtract reference value from stream data
 always @ (posedge clk, posedge rst)

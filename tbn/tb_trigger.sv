@@ -46,20 +46,21 @@ logic rst = 1'b1;
 always #5 clk = ~clk;
 
 // system bus (write access only)
-wire           bus_wready;
-wire           bus_wvalid;
-wire [BAW-1:0] bus_waddr ;
-wire [BDW-1:0] bus_wdata ;
+wire            bus_wready;
+wire            bus_wvalid;
+wire  [BAW-1:0] bus_waddr ;
+wire  [BDW-1:0] bus_wdata ;
+logic   [4-1:0] bus_wselct;
 
 // input stream
-wire           sti_tready;
-wire           sti_tvalid;
-wire [SDW-1:0] sti_tdata ;
+wire            sti_tready;
+wire            sti_tvalid;
+wire  [SDW-1:0] sti_tdata ;
 // output stream
-wire           sto_tready;
-wire           sto_tvalid;
-wire [SEW-1:0] sto_tevent;
-wire [SDW-1:0] sto_tdata ;
+wire            sto_tready;
+wire            sto_tvalid;
+wire  [SEW-1:0] sto_tevent;
+wire  [SDW-1:0] sto_tdata ;
 
 // debuging signals
 logic [SDW-1:0] dat;
@@ -74,11 +75,7 @@ initial begin
   repeat (4) @ (posedge clk);
 
   // program registers
-  master.trn (8'h00, 32'h00000001);
-  master.trn (8'h04, 32'h76543210);
-  master.trn (8'h05, 32'h01234567);
-  master.trn (8'h06, 32'hfedcba98);
-  master.trn (8'h07, 32'h89abcdef);
+  configure_sos;
 
   // send test sequence
   fork
@@ -89,6 +86,69 @@ initial begin
   repeat (4) @ (posedge clk);
   $finish();
 end
+
+////////////////////////////////////////////////////////////////////////////////
+// table calculator
+////////////////////////////////////////////////////////////////////////////////
+
+localparam integer TEW = TMN+TCN+TAN;    // table event width
+localparam integer TAW = TSW+TEW;        // table address width
+localparam integer TDW = TSW+SEW+2*TCN;  // table data width
+
+function [TDW-1:0] table_sos (
+  input bit [TAW-1:0] adr
+);
+  // events
+  bit [TMN-1:0] evt_cmp;
+  bit [TAN-1:0] evt_add;
+  bit [TCN-1:0] evt_cnt;
+  // status
+  bit [TSW-1:0] tbl_stt;
+  // return values
+  bit [TSW-1:0] stt;
+  bit [  2-1:0] evt;
+begin
+  // deconstruct address
+  {{evt_cmp, evt_add, evt_cnt}, tbl_stt} = adr;
+  // state machine description
+  case (tbl_stt)
+    0: begin
+      if (evt_cmp[0]) begin stt = 1; evt = 0; end
+      else            begin stt = 0; evt = 0; end
+    end
+    1: begin
+      if (evt_cmp[1]) begin stt = 2; evt = 0; end
+      else            begin stt = 0; evt = 0; end
+    end
+    2: begin
+      if (evt_cmp[0]) begin stt = 3; evt = 1; end
+      else            begin stt = 0; evt = 0; end
+    end
+    default:          begin stt = 0; evt = 0; end
+  endcase
+  // contruct a data line in the table
+  table_sos = {evt, stt};
+end
+endfunction: table_sos
+
+task configure_sos;
+  int adr;
+begin
+  // select comparator registers
+  bus_wselct = 4'b0001;
+  // program registers
+  master.trn (8'h00, 32'h00000001);
+  master.trn (8'h04, 32'h76543210);
+  master.trn (8'h05, 32'h01234567);
+  master.trn (8'h06, 32'hfedcba98);
+  master.trn (8'h07, 32'h89abcdef);
+  // program table
+  bus_wselct = 4'b0010;
+  for (adr = 0; adr < 2**TAW; adr++) begin
+    master.trn (adr, table_sos (adr [TAW-1:0]));
+  end
+end
+endtask: configure_sos
 
 ////////////////////////////////////////////////////////////////////////////////
 // module instances
@@ -153,6 +213,7 @@ trigger #(
   .bus_wvalid  (bus_wvalid),
   .bus_waddr   (bus_waddr ),
   .bus_wdata   (bus_wdata ),
+  .bus_wselct  (bus_wselct),
   // input stream
   .sti_tready  (sti_tready),
   .sti_tvalid  (sti_tvalid),
