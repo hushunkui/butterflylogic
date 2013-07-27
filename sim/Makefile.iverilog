@@ -67,8 +67,8 @@ shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v
 	vvp -n -l shifter.log shifter.out
 
 trigger: $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG)
-	iverilog $(OPT) $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG) -o adv.out
-	vvp -n -l adv.log adv.out
+	iverilog $(OPT) $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG) -o trigger.out
+	vvp -n -l trigger.log trigger.out -fst
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v
 	iverilog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v -o rle.out
