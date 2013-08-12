@@ -1,0 +1,118 @@
+[*]
+[*] GTKWave Analyzer v3.3.47 (w)1999-2013 BSI
+[*] Sun Aug 11 07:19:26 2013
+[*]
+[dumpfile] "/home/izi/Workplace/butterflylogic/sim/waves.dump"
+[dumpfile_mtime] "Sun Aug 11 07:19:12 2013"
+[dumpfile_size] 2862306
+[savefile] "/home/izi/Workplace/butterflylogic/sim/trigger.gtkw"
+[timestart] 163942600
+[size] 1535 1176
+[pos] -1 -1
+*-14.830040 164020000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_trigger.
+[treeopen] tb_trigger.trigger.
+[sst_width] 328
+[signals_width] 255
+[sst_expanded] 1
+[sst_vpaned_height] 362
+@800200
+-system
+@28
+tb_trigger.trigger.clk
+tb_trigger.trigger.rst
+@1000200
+-system
+@800200
+-bus
+@22
+tb_trigger.trigger.bus_wselct[3:0]
+@28
+tb_trigger.trigger.bus_wready
+tb_trigger.trigger.bus_wvalid
+@22
+tb_trigger.trigger.bus_waddr[7:0]
+tb_trigger.trigger.bus_wdata[31:0]
+@28
+tb_trigger.trigger.bus_transfer
+@1000200
+-bus
+@800200
+-cfg
+@28
+tb_trigger.trigger.cfg_add_mod[1:0]
+@22
+tb_trigger.trigger.cfg_add_msk[63:0]
+tb_trigger.trigger.cfg_add_val[63:0]
+tb_trigger.trigger.cfg_cmp_0_0[127:0]
+tb_trigger.trigger.cfg_cmp_0_1[127:0]
+tb_trigger.trigger.cfg_cmp_1_0[127:0]
+tb_trigger.trigger.cfg_cmp_1_1[127:0]
+tb_trigger.trigger.cfg_cmp_mod[3:0]
+tb_trigger.trigger.cfg_cnt_val[127:0]
+@1000200
+-cfg
+@800200
+-sti
+@22
+tb_trigger.trigger.sti_tdata[31:0]
+@28
+tb_trigger.trigger.sti_transfer
+tb_trigger.trigger.sti_tready
+tb_trigger.trigger.sti_tvalid
+@1000200
+-sti
+@800200
+-stl
+@22
+tb_trigger.trigger.stl_tdata[31:0]
+tb_trigger.trigger.stl_tevent[7:0]
+@28
+tb_trigger.trigger.stl_transfer
+tb_trigger.trigger.stl_tready
+tb_trigger.trigger.stl_tvalid
+@1000200
+-stl
+@800200
+-sto
+@22
+tb_trigger.trigger.sto_tdata[31:0]
+@28
+tb_trigger.trigger.sto_tevent[1:0]
+tb_trigger.trigger.sto_transfer
+tb_trigger.trigger.sto_tready
+tb_trigger.trigger.sto_tvalid
+@1000200
+-sto
+@22
+tb_trigger.trigger.tbl_evt[9:0]
+tb_trigger.trigger.tbl_stt[3:0]
+@28
+tb_trigger.trigger.evt_add[1:0]
+@22
+tb_trigger.trigger.evt_cmp[3:0]
+tb_trigger.trigger.evt_cnt[3:0]
+@800201
+-cmp_0
+@23
+tb_trigger.trigger.comparator[0].cfg_0_0[31:0]
+tb_trigger.trigger.comparator[0].cfg_0_1[31:0]
+tb_trigger.trigger.comparator[0].cfg_1_0[31:0]
+tb_trigger.trigger.comparator[0].cfg_1_1[31:0]
+@29
+tb_trigger.trigger.comparator[0].cfg_mod
+tb_trigger.trigger.comparator[0].clk
+@23
+tb_trigger.trigger.comparator[0].cmp_tdata[31:0]
+tb_trigger.trigger.comparator[0].dly_tdata[31:0]
+@29
+tb_trigger.trigger.comparator[0].rst
+@23
+tb_trigger.trigger.comparator[0].sti_tdata[31:0]
+@29
+tb_trigger.trigger.comparator[0].sti_transfer
+tb_trigger.trigger.comparator[0].sts_evt
+@1000201
+-cmp_0
+[pattern_trace] 1
+[pattern_trace] 0
