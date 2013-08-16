@@ -81,7 +81,8 @@ reg      [SDW-1:0] stl_tdata ;
 wire bus_transfer;
 
 // configuration - comparator
-reg  [TMN    -1:0] cfg_cmp_mod;
+reg  [TMN*SDW-1:0] cfg_cmp_or ;
+reg  [TMN*SDW-1:0] cfg_cmp_and;
 reg  [TMN*SDW-1:0] cfg_cmp_0_0;
 reg  [TMN*SDW-1:0] cfg_cmp_0_1;
 reg  [TMN*SDW-1:0] cfg_cmp_1_0;
@@ -121,7 +122,8 @@ generate
 for (i=0; i<TMN; i=i+1) begin: cmp
   always @ (posedge clk, posedge rst)
   if (rst) begin
-    cfg_cmp_mod [  1*i+:  1] <= {  1{1'b0}};
+    cfg_cmp_or  [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_cmp_and [SDW*i+:SDW] <= {SDW{1'b0}};
     cfg_cmp_0_0 [SDW*i+:SDW] <= {SDW{1'b0}};
     cfg_cmp_0_1 [SDW*i+:SDW] <= {SDW{1'b0}};
     cfg_cmp_1_0 [SDW*i+:SDW] <= {SDW{1'b0}};
@@ -129,7 +131,8 @@ for (i=0; i<TMN; i=i+1) begin: cmp
   end else if (bus_transfer & bus_wselct[0]) begin
     if (bus_waddr[4:3] == i) begin
       case (bus_waddr[2:0])
-        3'b000: cfg_cmp_mod [  1*i+:  1] <= bus_wdata [0+:  1];
+        3'b000: cfg_cmp_or  [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b001: cfg_cmp_and [SDW*i+:SDW] <= bus_wdata [0+:SDW];
         3'b100: cfg_cmp_0_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
         3'b101: cfg_cmp_0_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
         3'b110: cfg_cmp_1_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
@@ -223,7 +226,8 @@ trigger_comparator #(
   .clk      (clk),
   .rst      (rst),
   // configuration
-  .cfg_mod  (cfg_cmp_mod),
+  .cfg_or   (cfg_cmp_or ),
+  .cfg_and  (cfg_cmp_and),
   .cfg_0_0  (cfg_cmp_0_0),
   .cfg_0_1  (cfg_cmp_0_1),
   .cfg_1_0  (cfg_cmp_1_0),

@@ -31,7 +31,8 @@ module trigger_comparator #(
   input  wire           rst,          // reset
 
   // configuration
-  input  wire           cfg_mod, // mode (0 - OR, 1 - AND)
+  input  wire [SDW-1:0] cfg_or , //
+  input  wire [SDW-1:0] cfg_and, //
   input  wire [SDW-1:0] cfg_0_0, //
   input  wire [SDW-1:0] cfg_0_1, //
   input  wire [SDW-1:0] cfg_1_0, //
@@ -49,25 +50,33 @@ module trigger_comparator #(
 //////////////////////////////////////////////////////////////////////////////
 
 reg  [SDW-1:0] dly_tdata;
+wire [SDW-1:0] cmp_tdata_0_0;
+wire [SDW-1:0] cmp_tdata_0_1;
+wire [SDW-1:0] cmp_tdata_1_0;
+wire [SDW-1:0] cmp_tdata_1_1;
 wire [SDW-1:0] cmp_tdata;
 
 //////////////////////////////////////////////////////////////////////////////
 // comparator
 //////////////////////////////////////////////////////////////////////////////
 
+// TODO, this is actually here just to avoid simulation issues
+initial dly_tdata = 0;
+
 // delay input data
 always @ (posedge clk)
 if (sti_transfer) dly_tdata <= sti_tdata;
 
 // match data against configuration
-assign cmp_tdata = ((~dly_tdata & ~sti_tdata) & cfg_0_0) |
-                   ((~dly_tdata &  sti_tdata) & cfg_0_1) |
-                   (( dly_tdata & ~sti_tdata) & cfg_1_0) |
-                   (( dly_tdata &  sti_tdata) & cfg_1_1) ;
+assign cmp_tdata_0_0 = (~dly_tdata & ~sti_tdata) & cfg_0_0;
+assign cmp_tdata_0_1 = (~dly_tdata &  sti_tdata) & cfg_0_1;
+assign cmp_tdata_1_0 = ( dly_tdata & ~sti_tdata) & cfg_1_0;
+assign cmp_tdata_1_1 = ( dly_tdata &  sti_tdata) & cfg_1_1;
+assign cmp_tdata = cmp_tdata_0_0 | cmp_tdata_0_1 | cmp_tdata_1_0 | cmp_tdata_1_1;
 
 // combine (OR/AND) bitwise signals into a single hit
 always @ (posedge clk, posedge rst)
 if (rst)                sts_evt <= 1'b0;
-else if (sti_transfer)  sts_evt <= cfg_mod ? &cmp_tdata : |cmp_tdata;
+else if (sti_transfer)  sts_evt <= (&(cmp_tdata | ~cfg_and) & |cfg_and) | (|(cmp_tdata & cfg_or));
 
 endmodule

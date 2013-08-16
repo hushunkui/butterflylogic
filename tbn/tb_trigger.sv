@@ -79,13 +79,56 @@ initial begin
 
   // send test sequence
   fork
-    src.trn (32'h76543210);
-    drn.trn (dat);
+    begin: seq_src
+      src.trn ({32'h00000000}); // dummy data, to clear the comparator pipeline
+      src.trn ({24'h000000,"S"});
+      src.trn ({24'h000000,"O"});
+      src.trn ({24'h000000,"S"});
+    end: seq_src
+    begin: seq_drn
+      drn.trn (dat);
+      drn.trn (dat);
+      drn.trn (dat);
+      drn.trn (dat);
+    end: seq_drn
   join
 
   repeat (4) @ (posedge clk);
   $finish();
 end
+
+////////////////////////////////////////////////////////////////////////////////
+// comparator calculator
+////////////////////////////////////////////////////////////////////////////////
+
+typedef struct {
+  bit [SDW-1:0] cmp_or ;
+  bit [SDW-1:0] cmp_and;
+  bit [SDW-1:0] cmp_0_0;
+  bit [SDW-1:0] cmp_0_1;
+  bit [SDW-1:0] cmp_1_0;
+  bit [SDW-1:0] cmp_1_1;
+} t_cfg_cmp;
+
+function t_cfg_cmp comparator_match (
+  logic [SDW-1:0] val
+);
+  bit [SDW-1:0] val0;
+  bit [SDW-1:0] val1;
+  bit [SDW-1:0] mask;
+begin
+  val0 = ~val;
+  val1 =  val;
+  mask = val0 ^ val1;
+  $display ("val = %08x, val0 =  %08x, val1 =  %08x, mask = %08x", val, val0, val1, mask);
+  comparator_match.cmp_or  = 0;
+  comparator_match.cmp_and = mask;
+  comparator_match.cmp_0_0 = ~val;
+  comparator_match.cmp_0_1 =  val;
+  comparator_match.cmp_1_0 = ~val;
+  comparator_match.cmp_1_1 =  val;
+end
+endfunction: comparator_match
 
 ////////////////////////////////////////////////////////////////////////////////
 // table calculator
@@ -133,15 +176,26 @@ endfunction: table_sos
 
 task configure_sos;
   int adr;
+  t_cfg_cmp cfg_cmp;
 begin
   // select comparator registers
   bus_wselct = 4'b0001;
-  // program registers
-  master.trn (8'h00, 32'h00000001);
-  master.trn (8'h04, 32'h76543210);
-  master.trn (8'h05, 32'h01234567);
-  master.trn (8'h06, 32'hfedcba98);
-  master.trn (8'h07, 32'h89abcdef);
+  // program CMP 0 with 'S'
+  cfg_cmp = comparator_match ({24'hxxxxxx,"S"});
+  master.trn ({5'h0,3'h0}, cfg_cmp.cmp_or );
+  master.trn ({5'h0,3'h1}, cfg_cmp.cmp_and);
+  master.trn ({5'h0,3'h4}, cfg_cmp.cmp_0_0);
+  master.trn ({5'h0,3'h5}, cfg_cmp.cmp_0_1);
+  master.trn ({5'h0,3'h6}, cfg_cmp.cmp_1_0);
+  master.trn ({5'h0,3'h7}, cfg_cmp.cmp_1_1);
+  // program CMP 0 with 'O'
+  cfg_cmp = comparator_match ({24'hxxxxxx,"O"});
+  master.trn ({5'h1,3'h0}, cfg_cmp.cmp_or );
+  master.trn ({5'h1,3'h1}, cfg_cmp.cmp_and);
+  master.trn ({5'h1,3'h4}, cfg_cmp.cmp_0_0);
+  master.trn ({5'h1,3'h5}, cfg_cmp.cmp_0_1);
+  master.trn ({5'h1,3'h6}, cfg_cmp.cmp_1_0);
+  master.trn ({5'h1,3'h7}, cfg_cmp.cmp_1_1);
   // program table
   bus_wselct = 4'b0010;
   for (adr = 0; adr < 2**TAW; adr++) begin
