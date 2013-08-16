@@ -13,15 +13,15 @@ LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
 LIB_ALTERA =
 #LIB_ALTERA = $(DIR_ALTERA)/
 
-RTL_SPI = ../rtl/spi_receiver.v       \
-          ../rtl/spi_slave.v          \
+RTL_SPI = ../rtl/spi_receiver.v    \
+          ../rtl/spi_slave.v       \
           ../rtl/spi_transmitter.v
-RTL_UART= ../rtl/uart_rx.v            \
-          ../rtl/uart_tx.v            \
+RTL_UART= ../rtl/uart_rx.v         \
+          ../rtl/uart_tx.v         \
           ../rtl/uart.v
-RTL_TRG = ../rtl/trigger_comparator.v \
-          ../rtl/trigger_adder.v      \
-          ../rtl/trigger_counter.v    \
+RTL_TRG = ../rtl/trigger_matcher.v \
+          ../rtl/trigger_adder.v   \
+          ../rtl/trigger_counter.v \
           ../rtl/trigger.v
 RTL     = ../rtl/cdc.v             \
           ../rtl/controller.v      \

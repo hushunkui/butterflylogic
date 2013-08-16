@@ -80,7 +80,7 @@ initial begin
   // send test sequence
   fork
     begin: seq_src
-      src.trn ({32'h00000000}); // dummy data, to clear the comparator pipeline
+      src.trn ({32'h00000000}); // dummy data, to clear the matcher pipeline
       src.trn ({24'h000000,"S"});
       src.trn ({24'h000000,"O"});
       src.trn ({24'h000000,"S"});
@@ -98,7 +98,7 @@ initial begin
 end
 
 ////////////////////////////////////////////////////////////////////////////////
-// comparator calculator
+// matcher calculator
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef struct {
@@ -110,7 +110,7 @@ typedef struct {
   bit [SDW-1:0] cmp_1_1;
 } t_cfg_cmp;
 
-function t_cfg_cmp comparator_match (
+function t_cfg_cmp matcher_match (
   logic [SDW-1:0] val
 );
   bit [SDW-1:0] val0;
@@ -121,14 +121,14 @@ begin
   val1 =  val;
   mask = val0 ^ val1;
   $display ("val = %08x, val0 =  %08x, val1 =  %08x, mask = %08x", val, val0, val1, mask);
-  comparator_match.cmp_or  = 0;
-  comparator_match.cmp_and = mask;
-  comparator_match.cmp_0_0 = ~val;
-  comparator_match.cmp_0_1 =  val;
-  comparator_match.cmp_1_0 = ~val;
-  comparator_match.cmp_1_1 =  val;
+  matcher_match.cmp_or  = 0;
+  matcher_match.cmp_and = mask;
+  matcher_match.cmp_0_0 = ~val;
+  matcher_match.cmp_0_1 =  val;
+  matcher_match.cmp_1_0 = ~val;
+  matcher_match.cmp_1_1 =  val;
 end
-endfunction: comparator_match
+endfunction: matcher_match
 
 ////////////////////////////////////////////////////////////////////////////////
 // table calculator
@@ -178,10 +178,10 @@ task configure_sos;
   int adr;
   t_cfg_cmp cfg_cmp;
 begin
-  // select comparator registers
+  // select matcher registers
   bus_wselct = 4'b0001;
   // program CMP 0 with 'S'
-  cfg_cmp = comparator_match ({24'hxxxxxx,"S"});
+  cfg_cmp = matcher_match ({24'hxxxxxx,"S"});
   master.trn ({5'h0,3'h0}, cfg_cmp.cmp_or );
   master.trn ({5'h0,3'h1}, cfg_cmp.cmp_and);
   master.trn ({5'h0,3'h4}, cfg_cmp.cmp_0_0);
@@ -189,7 +189,7 @@ begin
   master.trn ({5'h0,3'h6}, cfg_cmp.cmp_1_0);
   master.trn ({5'h0,3'h7}, cfg_cmp.cmp_1_1);
   // program CMP 0 with 'O'
-  cfg_cmp = comparator_match ({24'hxxxxxx,"O"});
+  cfg_cmp = matcher_match ({24'hxxxxxx,"O"});
   master.trn ({5'h1,3'h0}, cfg_cmp.cmp_or );
   master.trn ({5'h1,3'h1}, cfg_cmp.cmp_and);
   master.trn ({5'h1,3'h4}, cfg_cmp.cmp_0_0);

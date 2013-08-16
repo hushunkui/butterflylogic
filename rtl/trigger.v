@@ -80,7 +80,7 @@ reg      [SDW-1:0] stl_tdata ;
 // system bus transfer
 wire bus_transfer;
 
-// configuration - comparator
+// configuration - matcher
 reg  [TMN*SDW-1:0] cfg_cmp_or ;
 reg  [TMN*SDW-1:0] cfg_cmp_and;
 reg  [TMN*SDW-1:0] cfg_cmp_0_0;
@@ -117,7 +117,7 @@ assign bus_wready = 1'b1;
 // system bus transfer
 assign bus_transfer = bus_wvalid & bus_wready;
 
-// comparator configuration write
+// matcher configuration write
 generate
 for (i=0; i<TMN; i=i+1) begin: cmp
   always @ (posedge clk, posedge rst)
@@ -215,13 +215,13 @@ always @ (posedge clk, posedge rst)
 if (stl_transfer)  sto_tdata <= stl_tdata;
 
 //////////////////////////////////////////////////////////////////////////////
-// comparators
+// matchers
 //////////////////////////////////////////////////////////////////////////////
 
-trigger_comparator #(
+trigger_matcher #(
   // sample data parameters
   .SDW (SDW)
-) comparator [TCN-1:0] (
+) matcher [TCN-1:0] (
   // system signas
   .clk      (clk),
   .rst      (rst),
