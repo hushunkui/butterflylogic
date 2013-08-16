@@ -25,19 +25,23 @@
 `timescale 1ns/100ps
 
 module tb_trigger #(
-  // system bus parameters
-  parameter integer BAW = 8,   // bus address width
-  parameter integer BDW = 32,  // bus data    width
   // sample data parameters
-  parameter integer SDW = 32,  // sample data    width
-  parameter integer SEW = 2,   // sample data    width
+  parameter integer SEW = 2,   // sample event width
+  parameter integer SDW = 32,  // sample data  width
   // trigger event source parameters
   parameter integer TMN = 4,   // trigger matcher number
   parameter integer TAN = 2,   // trigger adder   number
   parameter integer TCN = 4,   // trigger counter number
   parameter integer TCW = 32,  // counter width
   // state machine table parameters
-  parameter integer TSW = 4    // table state width
+  parameter integer TSW = 4,   // table state width
+  // local table parameters, also used elsewhere
+  parameter integer TEW = TMN+TAN+TCN,    // table event width
+  parameter integer TAW = TSW+TEW,        // table address width
+  parameter integer TDW = TSW+SEW+2*TCN,  // table data width
+  // system bus parameters
+  parameter integer BAW = TAW, // bus address width
+  parameter integer BDW = 32   // bus data    width
 );
 
 logic clk = 1'b1;
@@ -102,15 +106,15 @@ end
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef struct {
-  bit [SDW-1:0] cmp_or ;
-  bit [SDW-1:0] cmp_and;
-  bit [SDW-1:0] cmp_0_0;
-  bit [SDW-1:0] cmp_0_1;
-  bit [SDW-1:0] cmp_1_0;
-  bit [SDW-1:0] cmp_1_1;
-} t_cfg_cmp;
+  bit [SDW-1:0] mch_or ;
+  bit [SDW-1:0] mch_and;
+  bit [SDW-1:0] mch_0_0;
+  bit [SDW-1:0] mch_0_1;
+  bit [SDW-1:0] mch_1_0;
+  bit [SDW-1:0] mch_1_1;
+} t_cfg_mch;
 
-function t_cfg_cmp matcher_match (
+function t_cfg_mch matcher_match (
   logic [SDW-1:0] val
 );
   bit [SDW-1:0] val0;
@@ -121,12 +125,12 @@ begin
   val1 =  val;
   mask = val0 ^ val1;
   $display ("val = %08x, val0 =  %08x, val1 =  %08x, mask = %08x", val, val0, val1, mask);
-  matcher_match.cmp_or  = 0;
-  matcher_match.cmp_and = mask;
-  matcher_match.cmp_0_0 = ~val;
-  matcher_match.cmp_0_1 =  val;
-  matcher_match.cmp_1_0 = ~val;
-  matcher_match.cmp_1_1 =  val;
+  matcher_match.mch_or  = 0;
+  matcher_match.mch_and = mask;
+  matcher_match.mch_0_0 = ~val;
+  matcher_match.mch_0_1 =  val;
+  matcher_match.mch_1_0 = ~val;
+  matcher_match.mch_1_1 =  val;
 end
 endfunction: matcher_match
 
@@ -134,72 +138,71 @@ endfunction: matcher_match
 // table calculator
 ////////////////////////////////////////////////////////////////////////////////
 
-localparam integer TEW = TMN+TCN+TAN;    // table event width
-localparam integer TAW = TSW+TEW;        // table address width
-localparam integer TDW = TSW+SEW+2*TCN;  // table data width
-
 function [TDW-1:0] table_sos (
   input bit [TAW-1:0] adr
 );
   // events
-  bit [TMN-1:0] evt_cmp;
-  bit [TAN-1:0] evt_add;
-  bit [TCN-1:0] evt_cnt;
-  // status
-  bit [TSW-1:0] tbl_stt;
+  bit   [TMN-1:0] evt_mch;  // matcher
+  bit   [TAN-1:0] evt_add;  // adder
+  bit   [TCN-1:0] evt_cnt;  // counter
+  // state
+  bit   [TSW-1:0] tbl_stt;  // state
   // return values
-  bit [TSW-1:0] stt;
-  bit [  2-1:0] evt;
+  bit   [TSW-1:0] out_stt;
+  bit [2*TCN-1:0] out_cnt;
+  bit     [2-1:0] out_evt;
 begin
   // deconstruct address
-  {{evt_cmp, evt_add, evt_cnt}, tbl_stt} = adr;
+  {{evt_mch, evt_add, evt_cnt}, tbl_stt} = adr;
   // state machine description
   case (tbl_stt)
     0: begin
-      if (evt_cmp[0]) begin stt = 1; evt = 0; end
-      else            begin stt = 0; evt = 0; end
+      if (evt_mch[0]) begin out_stt = 1; out_evt = 0; end
+      else            begin out_stt = 0; out_evt = 0; end
     end
     1: begin
-      if (evt_cmp[1]) begin stt = 2; evt = 0; end
-      else            begin stt = 0; evt = 0; end
+      if (evt_mch[1]) begin out_stt = 2; out_evt = 0; end
+      else            begin out_stt = 0; out_evt = 0; end
     end
     2: begin
-      if (evt_cmp[0]) begin stt = 3; evt = 1; end
-      else            begin stt = 0; evt = 0; end
+      if (evt_mch[0]) begin out_stt = 3; out_evt = 1; end
+      else            begin out_stt = 0; out_evt = 0; end
     end
-    default:          begin stt = 0; evt = 0; end
+    default:          begin out_stt = 0; out_evt = 0; end
   endcase
+  // counters are not used here, therefore they should idle
+  out_cnt = {TCN{2'b00}}; 
   // contruct a data line in the table
-  table_sos = {evt, stt};
+  table_sos = {out_evt, out_cnt, out_stt};
 end
 endfunction: table_sos
 
 task configure_sos;
   int adr;
-  t_cfg_cmp cfg_cmp;
+  t_cfg_mch cfg_mch;
 begin
   // select matcher registers
   bus_wselct = 4'b0001;
   // program CMP 0 with 'S'
-  cfg_cmp = matcher_match ({24'hxxxxxx,"S"});
-  master.trn ({5'h0,3'h0}, cfg_cmp.cmp_or );
-  master.trn ({5'h0,3'h1}, cfg_cmp.cmp_and);
-  master.trn ({5'h0,3'h4}, cfg_cmp.cmp_0_0);
-  master.trn ({5'h0,3'h5}, cfg_cmp.cmp_0_1);
-  master.trn ({5'h0,3'h6}, cfg_cmp.cmp_1_0);
-  master.trn ({5'h0,3'h7}, cfg_cmp.cmp_1_1);
+  cfg_mch = matcher_match ({24'hxxxxxx,"S"});
+  master.trn ({5'h0,3'h0}, cfg_mch.mch_or );
+  master.trn ({5'h0,3'h1}, cfg_mch.mch_and);
+  master.trn ({5'h0,3'h4}, cfg_mch.mch_0_0);
+  master.trn ({5'h0,3'h5}, cfg_mch.mch_0_1);
+  master.trn ({5'h0,3'h6}, cfg_mch.mch_1_0);
+  master.trn ({5'h0,3'h7}, cfg_mch.mch_1_1);
   // program CMP 0 with 'O'
-  cfg_cmp = matcher_match ({24'hxxxxxx,"O"});
-  master.trn ({5'h1,3'h0}, cfg_cmp.cmp_or );
-  master.trn ({5'h1,3'h1}, cfg_cmp.cmp_and);
-  master.trn ({5'h1,3'h4}, cfg_cmp.cmp_0_0);
-  master.trn ({5'h1,3'h5}, cfg_cmp.cmp_0_1);
-  master.trn ({5'h1,3'h6}, cfg_cmp.cmp_1_0);
-  master.trn ({5'h1,3'h7}, cfg_cmp.cmp_1_1);
+  cfg_mch = matcher_match ({24'hxxxxxx,"O"});
+  master.trn ({5'h1,3'h0}, cfg_mch.mch_or );
+  master.trn ({5'h1,3'h1}, cfg_mch.mch_and);
+  master.trn ({5'h1,3'h4}, cfg_mch.mch_0_0);
+  master.trn ({5'h1,3'h5}, cfg_mch.mch_0_1);
+  master.trn ({5'h1,3'h6}, cfg_mch.mch_1_0);
+  master.trn ({5'h1,3'h7}, cfg_mch.mch_1_1);
   // program table
-  bus_wselct = 4'b0010;
+  bus_wselct = 4'b1000;
   for (adr = 0; adr < 2**TAW; adr++) begin
-    master.trn (adr, table_sos (adr [TAW-1:0]));
+    master.trn (adr, { {BDW-TDW{1'bx}}, table_sos (adr [TAW-1:0]) });
   end
 end
 endtask: configure_sos

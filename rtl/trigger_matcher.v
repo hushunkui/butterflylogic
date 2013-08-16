@@ -50,11 +50,11 @@ module trigger_matcher #(
 //////////////////////////////////////////////////////////////////////////////
 
 reg  [SDW-1:0] dly_tdata;
-wire [SDW-1:0] cmp_tdata_0_0;
-wire [SDW-1:0] cmp_tdata_0_1;
-wire [SDW-1:0] cmp_tdata_1_0;
-wire [SDW-1:0] cmp_tdata_1_1;
-wire [SDW-1:0] cmp_tdata;
+wire [SDW-1:0] mch_tdata_0_0;
+wire [SDW-1:0] mch_tdata_0_1;
+wire [SDW-1:0] mch_tdata_1_0;
+wire [SDW-1:0] mch_tdata_1_1;
+wire [SDW-1:0] mch_tdata;
 
 //////////////////////////////////////////////////////////////////////////////
 // matcher
@@ -68,15 +68,15 @@ always @ (posedge clk)
 if (sti_transfer) dly_tdata <= sti_tdata;
 
 // match data against configuration
-assign cmp_tdata_0_0 = (~dly_tdata & ~sti_tdata) & cfg_0_0;
-assign cmp_tdata_0_1 = (~dly_tdata &  sti_tdata) & cfg_0_1;
-assign cmp_tdata_1_0 = ( dly_tdata & ~sti_tdata) & cfg_1_0;
-assign cmp_tdata_1_1 = ( dly_tdata &  sti_tdata) & cfg_1_1;
-assign cmp_tdata = cmp_tdata_0_0 | cmp_tdata_0_1 | cmp_tdata_1_0 | cmp_tdata_1_1;
+assign mch_tdata_0_0 = (~dly_tdata & ~sti_tdata) & cfg_0_0;
+assign mch_tdata_0_1 = (~dly_tdata &  sti_tdata) & cfg_0_1;
+assign mch_tdata_1_0 = ( dly_tdata & ~sti_tdata) & cfg_1_0;
+assign mch_tdata_1_1 = ( dly_tdata &  sti_tdata) & cfg_1_1;
+assign mch_tdata = mch_tdata_0_0 | mch_tdata_0_1 | mch_tdata_1_0 | mch_tdata_1_1;
 
 // combine (OR/AND) bitwise signals into a single hit
 always @ (posedge clk, posedge rst)
 if (rst)                sts_evt <= 1'b0;
-else if (sti_transfer)  sts_evt <= (&(cmp_tdata | ~cfg_and) & |cfg_and) | (|(cmp_tdata & cfg_or));
+else if (sti_transfer)  sts_evt <= (&(mch_tdata | ~cfg_and) & |cfg_and) | (|(mch_tdata & cfg_or));
 
 endmodule

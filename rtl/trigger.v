@@ -23,19 +23,23 @@
 //////////////////////////////////////////////////////////////////////////////
 
 module trigger #(
-  // system bus parameters
-  parameter integer BAW = 6,   // bus address width
-  parameter integer BDW = 32,  // bus data    width
   // sample data parameters
-  parameter integer SDW = 32,  // sample data  width
   parameter integer SEW = 2,   // sample event width
+  parameter integer SDW = 32,  // sample data  width
   // trigger event source parameters
   parameter integer TMN = 4,   // trigger matcher number
   parameter integer TAN = 2,   // trigger adder   number
   parameter integer TCN = 4,   // trigger counter number
   parameter integer TCW = 32,  // counter width
   // state machine table parameters
-  parameter integer TSW = 4    // table state width (number of events)
+  parameter integer TSW = 4,   // table state width (number of events)
+  // local table parameters, also used elsewhere
+  parameter integer TEW = TMN+TAN+TCN,    // table event width
+  parameter integer TAW = TSW+TEW,        // table address width
+  parameter integer TDW = TSW+SEW+2*TCN,  // table data width
+  // system bus parameters
+  parameter integer BAW = TAW, // bus address width
+  parameter integer BDW = 32   // bus data    width
 )(
   // system signas
   input  wire           clk,          // clock
@@ -59,10 +63,6 @@ module trigger #(
   output reg  [SDW-1:0] sto_tdata
 );
 
-localparam integer TEW = TMN+TCN+TAN;    // table event width
-localparam integer TAW = TSW+TEW;        // table address width
-localparam integer TDW = TSW+SEW+2*TCN;  // table data width
-
 //////////////////////////////////////////////////////////////////////////////
 // local signals
 //////////////////////////////////////////////////////////////////////////////
@@ -81,12 +81,12 @@ reg      [SDW-1:0] stl_tdata ;
 wire bus_transfer;
 
 // configuration - matcher
-reg  [TMN*SDW-1:0] cfg_cmp_or ;
-reg  [TMN*SDW-1:0] cfg_cmp_and;
-reg  [TMN*SDW-1:0] cfg_cmp_0_0;
-reg  [TMN*SDW-1:0] cfg_cmp_0_1;
-reg  [TMN*SDW-1:0] cfg_cmp_1_0;
-reg  [TMN*SDW-1:0] cfg_cmp_1_1;
+reg  [TMN*SDW-1:0] cfg_mch_or ;
+reg  [TMN*SDW-1:0] cfg_mch_and;
+reg  [TMN*SDW-1:0] cfg_mch_0_0;
+reg  [TMN*SDW-1:0] cfg_mch_0_1;
+reg  [TMN*SDW-1:0] cfg_mch_1_0;
+reg  [TMN*SDW-1:0] cfg_mch_1_1;
 // configuration - adder
 reg  [TAN    -1:0] cfg_add_mod;
 reg  [TAN*SDW-1:0] cfg_add_msk;
@@ -97,11 +97,10 @@ reg  [TCN*TCW-1:0] cfg_cnt_val;
 // state machine table
 reg      [TDW-1:0] tbl_mem [2**TAW-1:0];  // state machine table
 reg      [TSW-1:0] tbl_stt;  // state
-wire     [TEW-1:0] tbl_evt;  // events
-reg      [TAW-1:0] tbl_adr;  // address
+wire     [TAW-1:0] tbl_adr;  // address
 
 // events
-wire     [TMN-1:0] evt_cmp;
+wire     [TMN-1:0] evt_mch;
 wire     [TAN-1:0] evt_add;
 wire     [TCN-1:0] evt_cnt;
 
@@ -122,21 +121,21 @@ generate
 for (i=0; i<TMN; i=i+1) begin: cmp
   always @ (posedge clk, posedge rst)
   if (rst) begin
-    cfg_cmp_or  [SDW*i+:SDW] <= {SDW{1'b0}};
-    cfg_cmp_and [SDW*i+:SDW] <= {SDW{1'b0}};
-    cfg_cmp_0_0 [SDW*i+:SDW] <= {SDW{1'b0}};
-    cfg_cmp_0_1 [SDW*i+:SDW] <= {SDW{1'b0}};
-    cfg_cmp_1_0 [SDW*i+:SDW] <= {SDW{1'b0}};
-    cfg_cmp_1_1 [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_or  [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_and [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_0_0 [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_0_1 [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_1_0 [SDW*i+:SDW] <= {SDW{1'b0}};
+    cfg_mch_1_1 [SDW*i+:SDW] <= {SDW{1'b0}};
   end else if (bus_transfer & bus_wselct[0]) begin
     if (bus_waddr[4:3] == i) begin
       case (bus_waddr[2:0])
-        3'b000: cfg_cmp_or  [SDW*i+:SDW] <= bus_wdata [0+:SDW];
-        3'b001: cfg_cmp_and [SDW*i+:SDW] <= bus_wdata [0+:SDW];
-        3'b100: cfg_cmp_0_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
-        3'b101: cfg_cmp_0_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
-        3'b110: cfg_cmp_1_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
-        3'b111: cfg_cmp_1_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b000: cfg_mch_or  [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b001: cfg_mch_and [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b100: cfg_mch_0_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b101: cfg_mch_0_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b110: cfg_mch_1_0 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
+        3'b111: cfg_mch_1_1 [SDW*i+:SDW] <= bus_wdata [0+:SDW];
       endcase
     end
   end
@@ -226,14 +225,14 @@ trigger_matcher #(
   .clk      (clk),
   .rst      (rst),
   // configuration
-  .cfg_or   (cfg_cmp_or ),
-  .cfg_and  (cfg_cmp_and),
-  .cfg_0_0  (cfg_cmp_0_0),
-  .cfg_0_1  (cfg_cmp_0_1),
-  .cfg_1_0  (cfg_cmp_1_0),
-  .cfg_1_1  (cfg_cmp_1_1),
+  .cfg_or   (cfg_mch_or ),
+  .cfg_and  (cfg_mch_and),
+  .cfg_0_0  (cfg_mch_0_0),
+  .cfg_0_1  (cfg_mch_0_1),
+  .cfg_1_0  (cfg_mch_1_0),
+  .cfg_1_1  (cfg_mch_1_1),
   // status
-  .sts_evt  (evt_cmp),
+  .sts_evt  (evt_mch),
   // input stream
   .sti_transfer (sti_transfer),
   .sti_tdata    (sti_tdata   )
@@ -287,11 +286,12 @@ trigger_counter #(
 // state machine table (produces next state and output event)
 //////////////////////////////////////////////////////////////////////////////
 
-assign tbl_evt = {evt_cmp, evt_add, evt_cnt};
+assign tbl_adr = {{evt_mch, evt_add, evt_cnt}, tbl_stt};
 
 // next state (rable read)
-always @ (posedge clk)
-if (sti_transfer) {sto_tevent, stl_tevent, tbl_stt} <= tbl_mem [{tbl_evt, tbl_stt}];
+always @ (posedge clk, posedge rst)
+if (rst)               {sto_tevent, stl_tevent, tbl_stt} <= 0;
+else if (stl_transfer) {sto_tevent, stl_tevent, tbl_stt} <= tbl_mem [tbl_adr];
 
 // start 
 // trigger

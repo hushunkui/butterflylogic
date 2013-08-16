@@ -48,17 +48,20 @@ module trigger_counter #(
 
 // counter register
 reg  [TCW-1:0] cnt_val;
-wire           cnt_clr;
-wire           cnt_inc;
-wire           cnt_dec;
+// counter commands decoded from events
+wire           cnt_idl;  // idle
+wire           cnt_clr;  // clear
+wire           cnt_inc;  // increment
+wire           cnt_dec;  // decrement
 
 //////////////////////////////////////////////////////////////////////////////
 // counter
 //////////////////////////////////////////////////////////////////////////////
 
-assign cnt_clr = sti_tevent == 2'b01;
-assign cnt_inc = sti_tevent == 2'b10;
-assign cnt_dec = sti_tevent == 2'b11;
+assign cnt_idl = sti_tevent == 2'b00;  // idle
+assign cnt_clr = sti_tevent == 2'b01;  // clear
+assign cnt_inc = sti_tevent == 2'b10;  // increment
+assign cnt_dec = sti_tevent == 2'b11;  // decrement
 
 // subtract reference value from stream data
 always @ (posedge clk, posedge rst)
