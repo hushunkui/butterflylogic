@@ -13,12 +13,12 @@ LIB_XILINX = $(DIR_XILINX)/BUFGMUX.v  \
 LIB_ALTERA =
 #LIB_ALTERA = $(DIR_ALTERA)/
 
-RTL_SPI = ../rtl/spi_receiver.v    \
-          ../rtl/spi_slave.v       \
-          ../rtl/spi_transmitter.v
-RTL_UART= ../rtl/uart_rx.v         \
-          ../rtl/uart_tx.v         \
-          ../rtl/uart.v
+RTL_SPI = ../rtl/spi/spi_receiver.v    \
+          ../rtl/spi/spi_slave.v       \
+          ../rtl/spi/spi_transmitter.v
+RTL_UART= ../rtl/uart/uart_rx.v         \
+          ../rtl/uart/uart_tx.v         \
+          ../rtl/uart/uart.v
 RTL_TRG = ../rtl/trigger_matcher.v \
           ../rtl/trigger_adder.v   \
           ../rtl/trigger_counter.v \
@@ -72,6 +72,10 @@ shifter: $(TBN_STR) ../tbn/tb_shifter.sv ../rtl/shifter.v work
 trigger: $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG) work
 	vlog $(OPT) $(TBN_STR) $(TBN_BUS) ../tbn/tb_trigger.sv $(RTL_TRG)
 	vsim -c -do 'run -all; quit' tb_trigger
+
+logger: $(TBN_STR) ../tbn/tb_logger.sv ../rtl/logger.v work
+	vlog $(OPT) $(TBN_STR) ../tbn/tb_logger.sv ../rtl/logger.v
+	vsim -c -do 'run -all; quit' tb_logger
 
 rle:  $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v work
 	vlog $(OPT) $(TBN_STR) ../tbn/tb_rle.sv ../rtl/rle_enc.v

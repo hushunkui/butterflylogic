@@ -211,7 +211,7 @@ endtask: configure_sos
 // module instances
 ////////////////////////////////////////////////////////////////////////////////
 
-// stream source instance
+// bus master instance
 bus_master #(.BAW (BAW), .BDW (BDW)) master (
   // system signals
   .clk     (clk),
